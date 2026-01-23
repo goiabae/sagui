@@ -3,6 +3,7 @@ local record T
 	fatal_fail: function(string, ...: any)
 	error: function(string, ...: any)
 	fail_now: function()
+	ok: function()
 end
 
 local function new (): T
@@ -16,6 +17,9 @@ local function new (): T
 		end,
 		fail_now = function()
 			error()
+		end,
+		ok = function()
+			print("OK:")
 		end,
 	}
 end

@@ -58,6 +58,44 @@ function Identifier:string(): string
 	return self.value
 end
 
+local record IntegerLiteral is Expression
+	token: token.Token
+	value: integer
+end
+
+function IntegerLiteral:expression_node() end
+function IntegerLiteral:token_literal(): string return self.token.literal end
+function IntegerLiteral.new(tk: token.Token, value: integer): IntegerLiteral
+	return setmetatable({
+		token = tk,
+		value = value,
+	}, { __index = IntegerLiteral })
+end
+
+function IntegerLiteral:string(): string
+	return tostring(self.value)
+end
+
+local record PrefixExpression is Expression
+	token: token.Token
+	operator: string
+	right: Expression
+end
+
+function PrefixExpression:expression_node() end
+function PrefixExpression:token_literal(): string return self.token.literal end
+function PrefixExpression.new(tk: token.Token, operator: string, right: Expression): PrefixExpression
+	return setmetatable({
+		token = tk,
+		operator = operator,
+		right = right,
+	}, { __index = PrefixExpression })
+end
+
+function PrefixExpression:string(): string
+	return "(" .. self.operator .. self.right:string() .. ")"
+end
+
 local record LetStatement is Statement
 	token: token.Token
 	name: Identifier
@@ -141,6 +179,8 @@ local ast <const> = {
 
 	Expression = Expression,
 	Identifier = Identifier,
+	IntegerLiteral = IntegerLiteral,
+	PrefixExpression = PrefixExpression,
 
 	Program = Program,
 }

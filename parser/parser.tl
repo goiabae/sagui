@@ -24,6 +24,9 @@ local record Parser
 	next_token: function(self)
 	peek_error: function(self, token.TokenType)
 
+	peek_precedence: function (self): integer
+	cur_precedence: function (self): integer
+
 	parse_program: function(self): ast.Program
 	parse_statement: function(self): ast.Statement
 	parse_let_statement: function(self): ast.LetStatement
@@ -33,6 +36,13 @@ local record Parser
 	parse_identifier: function (self): ast.Expression
 	parse_integer_literal: function (self): ast.Expression
 	parse_prefix_expression: function (self): ast.Expression
+	parse_infix_expression: function (self, ast.Expression): ast.Expression
+	parse_boolean: function (self): ast.Expression
+	parse_grouped_expression: function (self): ast.Expression
+	parse_if_expression: function (self): ast.Expression
+	parse_block_statement: function (self): ast.BlockStatement
+	parse_function_literal: function (self): ast.Expression
+	parse_function_parameters: function (self): {ast.Identifier}
 
 	register_prefix: function (self, token.TokenType, prefix_parse_fn)
 	register_infix: function (self, token.TokenType, infix_parse_fn)
@@ -45,6 +55,33 @@ local SUM <const> = 4
 local PRODUCT <const> = 5
 local PREFIX <const> = 6
 local CALL <const> = 7
+
+local precedences <const>: { token.TokenType:integer } = {
+	[token.EQ] =      EQUALS,
+	[token.NOT_EQ] =  EQUALS,
+	[token.LT] =      LESSGREATER,
+	[token.GT] =      LESSGREATER,
+	[token.PLUS] =    SUM,
+	[token.MINUS] =   SUM,
+	[token.SLASH] =   PRODUCT,
+	[token.ASTERISK] = PRODUCT,
+}
+
+function Parser:peek_precedence(): integer
+	local p = precedences[self.peek_token.type]
+	if p then
+		return p
+	end
+	return LOWEST
+end
+
+function Parser:cur_precedence(): integer
+	local p = precedences[self.cur_token.type]
+	if p then
+		return p
+	end
+	return LOWEST
+end
 
 function Parser:register_prefix (token_type: token.TokenType, fn: prefix_parse_fn)
 	self.prefix_parse_fns[token_type] = fn
@@ -106,6 +143,14 @@ function Parser:parse_expression (precedence: integer): ast.Expression
 		return nil
 	end
 	local left_exp = prefix(self)
+	while not self:peek_token_is(token.SEMICOLON) and precedence < self:peek_precedence() do
+		local infix = self.infix_parse_fns[self.peek_token.type]
+		if infix == nil then
+			return left_exp
+		end
+		self:next_token()
+		left_exp = infix(self, left_exp)
+	end
 	return left_exp
 end
 
@@ -129,6 +174,14 @@ function Parser:parse_prefix_expression (): ast.Expression
 	local expression = ast.PrefixExpression.new(self.cur_token, self.cur_token.literal, nil)
 	self:next_token()
 	expression.right = self:parse_expression(PREFIX)
+	return expression
+end
+
+function Parser:parse_infix_expression (left: ast.Expression): ast.Expression
+	local expression = ast.InfixExpression.new(self.cur_token, left, self.cur_token.literal, nil)
+	local precedence = self:cur_precedence()
+	self:next_token()
+	expression.right = self:parse_expression(precedence)
 	return expression
 end
 
@@ -169,6 +222,102 @@ function Parser:parse_let_statement(): ast.LetStatement
 	return stmt
 end
 
+function Parser:parse_boolean (): ast.Expression
+	if self:cur_token_is(token.TRUE) then
+		return ast.Boolean.new(self.cur_token, true)
+	elseif self:cur_token_is(token.FALSE) then
+		return ast.Boolean.new(self.cur_token, false)
+	else
+		return nil
+	end
+end
+
+function Parser:parse_grouped_expression (): ast.Expression
+	self:next_token()
+	local exp = self:parse_expression(LOWEST)
+	if not self:expect_peek(token.RPAREN) then
+		return nil
+	end
+	return exp
+end
+
+function Parser:parse_if_expression (): ast.Expression
+	local expression = ast.IfExpression.new(self.cur_token, nil, nil, nil)
+	if not self:expect_peek(token.LPAREN) then
+		return nil
+	end
+	self:next_token()
+	expression.condition = self:parse_expression(LOWEST)
+	if not self:expect_peek(token.RPAREN) then
+		return nil
+	end
+	if not self:expect_peek(token.LBRACE) then
+		return nil
+	end
+	expression.consequence = self:parse_block_statement()
+	if self:peek_token_is(token.ELSE) then
+		self:next_token()
+		if not self:expect_peek(token.LBRACE) then
+			return nil
+		end
+		expression.alternative = self:parse_block_statement()
+	end
+	return expression
+end
+
+function Parser:parse_block_statement (): ast.BlockStatement
+	local block = ast.BlockStatement.new(self.cur_token, {})
+	self:next_token()
+	while not self:cur_token_is(token.RBRACE) and not self:cur_token_is(token.EOF) do
+		local stmt = self:parse_statement()
+		if stmt ~= nil then
+			table.insert(block.statements, stmt)
+		end
+		self:next_token()
+	end
+	return block
+end
+
+function Parser:parse_function_literal (): ast.Expression
+	local lit = ast.FunctionLiteral.new(self.cur_token, nil, nil)
+	if not self:expect_peek(token.LPAREN) then
+		return nil
+	end
+	lit.parameters = self:parse_function_parameters()
+	assert(lit.parameters ~= nil)
+	if not lit.parameters then
+		return nil
+	end
+	if not self:expect_peek(token.LBRACE) then
+		return nil
+	end
+	lit.body = self:parse_block_statement()
+	return lit
+end
+
+function Parser:parse_function_parameters (): {ast.Identifier}
+	local identifiers = {}
+	if self:peek_token_is(token.RPAREN) then
+		self:next_token()
+		return identifiers
+	end
+	self:next_token()
+	do
+		local ident = ast.Identifier.new(self.cur_token, self.cur_token.literal)
+		table.insert(identifiers, ident)
+	end
+	while self:peek_token_is(token.COMMA) do
+		self:next_token()
+		self:next_token()
+		local ident = ast.Identifier.new(self.cur_token, self.cur_token.literal)
+		table.insert(identifiers, ident)
+	end
+	if not self:expect_peek(token.RPAREN) then
+		return nil
+	end
+	return identifiers
+end
+
 local function new (l: lexer.Lexer): Parser
 	local p: Parser = setmetatable({
 		l = l,
@@ -180,10 +329,25 @@ local function new (l: lexer.Lexer): Parser
 	}, { __index = Parser })
 	p:next_token()
 	p:next_token()
+
 	p:register_prefix(token.IDENT, p.parse_identifier)
 	p:register_prefix(token.INT, p.parse_integer_literal)
 	p:register_prefix(token.BANG, p.parse_prefix_expression)
 	p:register_prefix(token.MINUS, p.parse_prefix_expression)
+	p:register_prefix(token.TRUE, p.parse_boolean)
+	p:register_prefix(token.FALSE, p.parse_boolean)
+	p:register_prefix(token.LPAREN, p.parse_grouped_expression)
+	p:register_prefix(token.IF, p.parse_if_expression)
+	p:register_prefix(token.FUNCTION, p.parse_function_literal)
+
+	p:register_infix(token.PLUS, p.parse_infix_expression)
+	p:register_infix(token.MINUS, p.parse_infix_expression)
+	p:register_infix(token.SLASH, p.parse_infix_expression)
+	p:register_infix(token.ASTERISK, p.parse_infix_expression)
+	p:register_infix(token.EQ, p.parse_infix_expression)
+	p:register_infix(token.NOT_EQ, p.parse_infix_expression)
+	p:register_infix(token.LT, p.parse_infix_expression)
+	p:register_infix(token.GT, p.parse_infix_expression)
 	return p
 end
 

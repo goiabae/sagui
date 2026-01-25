@@ -96,6 +96,28 @@ function PrefixExpression:string(): string
 	return "(" .. self.operator .. self.right:string() .. ")"
 end
 
+local record InfixExpression is Expression
+	token: token.Token
+	left: Expression
+	operator: string
+	right: Expression
+end
+
+function InfixExpression:expression_node() end
+function InfixExpression:token_literal(): string return self.token.literal end
+function InfixExpression.new(tk: token.Token, left: Expression, operator: string, right: Expression): InfixExpression
+	return setmetatable({
+		token = tk,
+		left = left,
+		operator = operator,
+		right = right,
+	}, { __index = InfixExpression })
+end
+
+function InfixExpression:string(): string
+	return "(" .. self.left:string() .. " " .. self.operator .. " " .. self.right:string() .. ")"
+end
+
 local record LetStatement is Statement
 	token: token.Token
 	name: Identifier
@@ -169,6 +191,97 @@ function ExpressionStatement:string(): string
 	return ""
 end
 
+local record Boolean is Expression
+	token: token.Token
+	value: boolean
+end
+
+function Boolean:expression_node() end
+function Boolean:token_literal(): string return self.token.literal end
+function Boolean.new(tk: token.Token, value: boolean): Boolean
+	return setmetatable({
+		token = tk,
+		value = value,
+	}, { __index = Boolean })
+end
+
+function Boolean:string(): string
+	return self.token.literal
+end
+
+local record BlockStatement is Statement
+	token: token.Token
+	statements: {Statement}
+end
+
+function BlockStatement:statement_node() end
+function BlockStatement:token_literal(): string return self.token.literal end
+function BlockStatement.new(tk: token.Token, statements: {Statement}): BlockStatement
+	return setmetatable({
+		token = tk,
+		statements = statements,
+	}, { __index = BlockStatement })
+end
+
+function BlockStatement:string(): string
+	local out = ""
+	for _, s in ipairs(self.statements) do
+		out = out .. s:string()
+	end
+	return out
+end
+
+local record IfExpression is Expression
+	token: token.Token
+	condition: Expression
+	consequence: BlockStatement
+	alternative: BlockStatement
+end
+
+function IfExpression:expression_node() end
+function IfExpression:token_literal(): string return self.token.literal end
+function IfExpression.new(tk: token.Token, condition: Expression, consequence: BlockStatement, alternative: BlockStatement): IfExpression
+	return setmetatable({
+		token = tk,
+		condition = condition,
+		consequence = consequence,
+		alternative = alternative,
+	}, { __index = IfExpression })
+end
+
+function IfExpression:string(): string
+	local out = ""
+	out = out .. "if" .. self.condition:string() .. " " .. self.consequence:string()
+	if self.alternative ~= nil then
+		out = out .. "else " .. self.alternative:string()
+	end
+	return out
+end
+
+local record FunctionLiteral is Expression
+	token: token.Token
+	parameters: {Identifier}
+	body: BlockStatement
+end
+
+function FunctionLiteral:expression_node() end
+function FunctionLiteral:token_literal(): string return self.token.literal end
+function FunctionLiteral.new(tk: token.Token, parameters: {Identifier}, body: BlockStatement): FunctionLiteral
+	return setmetatable({
+		token = tk,
+		parameters = parameters,
+		body = body,
+	}, { __index = FunctionLiteral })
+end
+
+function FunctionLiteral:string(): string
+	local params = {}
+	for _, p in ipairs(self.parameters) do
+		table.insert(params, p:string())
+	end
+	return self:token_literal() .. "(" .. table.concat(params, ", ") .. ") " .. self.body:string()
+end
+
 local ast <const> = {
 	Node = Node,
 
@@ -176,11 +289,16 @@ local ast <const> = {
 	LetStatement = LetStatement,
 	ReturnStatement = ReturnStatement,
 	ExpressionStatement = ExpressionStatement,
+	BlockStatement = BlockStatement,
 
 	Expression = Expression,
 	Identifier = Identifier,
 	IntegerLiteral = IntegerLiteral,
 	PrefixExpression = PrefixExpression,
+	InfixExpression = InfixExpression,
+	Boolean = Boolean,
+	IfExpression = IfExpression,
+	FunctionLiteral = FunctionLiteral,
 
 	Program = Program,
 }

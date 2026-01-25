@@ -42,7 +42,7 @@ end
 
 function Lexer:read_identifier(): string
 	local position = self.position
-	while is_letter(self.ch) do
+	while self.ch and is_letter(self.ch) do
 		self:read_char()
 	end
 	return self.input:sub(position, self.position-1)

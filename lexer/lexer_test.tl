@@ -16,7 +16,6 @@ local function test_next_token (t: testing.T)
 		{ type = token.SEMICOLON, literal = ";" },
 		{ type = token.EOF, literal = "" },
 	}
-	print("test_next_token:")
 	local l = lexer.new(input)
 	for i, expected in ipairs(tests) do
 		local tok = l:next_token()
@@ -83,7 +82,6 @@ local function test_next_token2 (t: testing.T)
 		{ type = token.SEMICOLON, literal = ";" },
 		{ type = token.EOF, literal = "" },
 	}
-	print("test_next_token2:")
 	local l = lexer.new(input)
 	for i, expected in ipairs(tests) do
 		local tok = l:next_token()
@@ -164,7 +162,6 @@ local function test_next_token3 (t: testing.T)
 		{ type = token.SEMICOLON, literal = ";" },
 		{ type = token.EOF, literal = "" },
 	}
-	print("test_next_token3:")
 	local l = lexer.new(input)
 	for i, expected in ipairs(tests) do
 		local tok = l:next_token()
@@ -267,7 +264,6 @@ local function test_next_token4 (t: testing.T)
 		{ type = token.RBRACE, literal = "}" },
 		{ type = token.EOF, literal = "" },
 	}
-	print("test_next_token4:")
 	local l = lexer.new(input)
 	for i, expected in ipairs(tests) do
 		local tok = l:next_token()
@@ -381,7 +377,6 @@ local function test_next_token5 (t: testing.T)
 		{ type = token.SEMICOLON, literal = ";" },
 		{ type = token.EOF, literal = "" },
 	}
-	print("test_next_token5:")
 	local l = lexer.new(input)
 	for i, expected in ipairs(tests) do
 		local tok = l:next_token()

@@ -51,9 +51,9 @@ local function identifier_checker (value: string): check_node_fn
 end
 
 local function literal_checker (value: string | integer): check_node_fn
-	if type(value) == "string" then
+	if type(value) == "integer" then
 		return integer_literal_checker(value as integer)
-	elseif type(value) == "number" then
+	elseif type(value) == "string" then
 		return identifier_checker(value as string)
 	end
 end
@@ -178,6 +178,69 @@ local function function_literal_checker (params: {string}, body_ck: check_node_f
 			end
 		end
 		return body_ck(t, func.body)
+	end
+end
+
+local function return_statement_checker (exp_ck: check_node_fn): check_node_fn
+	return function (t: testing.T, node: ast.Node): boolean
+		if not node then
+			t.fatal_fail("node was nil")
+		end
+		if not (node is ast.ReturnStatement) then
+			t.error("node not ast.Returnstatement. got=%s", type(node))
+			return false
+		end
+		local ret = node as ast.ReturnStatement
+		return exp_ck(t, ret.return_value)
+	end
+end
+
+local function call_expression_checker (func_ck: check_node_fn, cks: { check_node_fn }): check_node_fn
+	return function (t: testing.T, node: ast.Node): boolean
+		if not (node is ast.CallExpression) then
+			t.error("node not ast.CallExpression. got=%s", type(node))
+			return false
+		end
+		local call = node as ast.CallExpression
+		if not func_ck(t, call.func) then
+			return false
+		end
+		if #call.arguments ~= #cks then
+			t.error("call expression has not %d arguments. got=%d", #cks, #call.arguments)
+			return false
+		end
+		for i, a in ipairs(call.arguments) do
+			if not cks[i](t, a) then
+				return false
+			end
+		end
+		return true
+	end
+end
+
+local function let_statement_checker (name: string, value_ck: check_node_fn): check_node_fn
+	return function (t: testing.T, node: ast.Node): boolean
+		if node:token_literal() ~= "let" then
+			t.error("s:token_literal() not 'let'. got='%s'", node:token_literal())
+			return false
+		end
+		if not (node is ast.LetStatement) then
+			t.error("s not ast.LetStatement")
+			return false
+		end
+		local let_stmt = node as ast.LetStatement
+		if let_stmt.name.value ~= name then
+			t.error("let_stmt.name.value not '%s'. got='%s'", name, let_stmt.name.value)
+			return false
+		end
+		if let_stmt.name:token_literal() ~= name then
+			t.error("let_stmt.name:token_literal() not '%s'. got='%s'", name, let_stmt.name:token_literal())
+			return false
+		end
+		if not value_ck(t, let_stmt.value) then
+			return false
+		end
+		return true
 	end
 end
 
@@ -424,19 +487,12 @@ local function test_return_statements (t: testing.T)
 	local p = parser.new(l)
 	local program = p:parse_program()
 	check_parser_errors(t, p)
-	if #program.statements ~= 3 then
-		t.fatal_fail("program.statements does not contain 3 statements: %d", #program.statements)
-	end
-	for _, stmt in ipairs(program.statements) do
-		if not (stmt is ast.ReturnStatement) then
-			t.error("stmt not ast.Returnstatement")
-		else
-			local return_stmt = stmt as ast.ReturnStatement
-			if return_stmt:token_literal() ~= "return" then
-				t.error("return_stmt:token_literal() not 'return'. got='%s'", return_stmt:token_literal())
-			end
-		end
-	end
+	local ck = program_checker {
+		return_statement_checker(integer_literal_checker(5)),
+		return_statement_checker(integer_literal_checker(10)),
+		return_statement_checker(integer_literal_checker(993322)),
+	}
+	ck(t, program)
 end
 
 local function test_identifier_expression (t: testing.T)
@@ -445,26 +501,12 @@ local function test_identifier_expression (t: testing.T)
 	local p = parser.new(l)
 	local program = p:parse_program()
 	check_parser_errors(t, p)
-	if #program.statements ~= 1 then
-		t.fatal_fail("program has not enough statements. got=%d", #program.statements)
-	end
-	local a = program.statements[1]
-	if not (a is ast.ExpressionStatement) then
-		t.fatal_fail("program.statements[1] is not ast.ExpressionStatement")
-	end
-	local stmt = program.statements[1] as ast.ExpressionStatement
-	local b = stmt.expression
-	if not (b is ast.Identifier) then
-		t.fatal_fail("exp not ast.Identifier.")
-	end
-	local ident = stmt.expression as ast.Identifier
-	if ident.value ~= "foobar" then
-		t.error("ident.value not %s. got=%s", "foobar", ident.value)
-	end
-	if ident:token_literal() ~= "foobar" then
-		t.error("ident:token_literal() not %s. got=%s", "foobar", ident:token_literal())
-	end
-	t.ok()
+	local ck = program_checker {
+		expression_statement_checker(
+			identifier_checker("foobar")
+		)
+	}
+	ck(t, program)
 end
 
 local function test_parsing_integer_literal (t: testing.T)
@@ -473,25 +515,12 @@ local function test_parsing_integer_literal (t: testing.T)
 	local p = parser.new(l)
 	local program = p:parse_program()
 	check_parser_errors(t, p)
-	if #program.statements ~= 1 then
-		t.fatal_fail("program has not enough statements. got=%d", #program.statements)
-	end
-	local a = program.statements[1]
-	if not (a is ast.ExpressionStatement) then
-		t.fatal_fail("program.statements[1] is not ast.ExpressionStatement")
-	end
-	local stmt = program.statements[1] as ast.ExpressionStatement
-	local b = stmt.expression
-	if not (b is ast.IntegerLiteral) then
-		t.fatal_fail("exp not ast.IntegerLiteral. got=%s", type(b))
-	end
-	local literal = stmt.expression as ast.IntegerLiteral
-	if literal.value ~= 5 then
-		t.error("literal.value not %d. got=%d", 5, literal.value)
-	end
-	if literal:token_literal() ~= "5" then
-		t.error("literal:token_literal() not %s. got=%s", "5", literal:token_literal())
-	end
+	local ck = program_checker {
+		expression_statement_checker(
+			integer_literal_checker(5)
+		)
+	}
+	ck(t, program)
 end
 
 local function test_parsing_prefix_expressions (t: testing.T)
@@ -580,6 +609,9 @@ local function test_operator_precedence_parsing (t: testing.T)
 		{ "2 / (5 + 5)", "(2 / (5 + 5))" },
 		{ "-(5 + 5)", "(-(5 + 5))" },
 		{ "!(true == true)", "(!(true == true))" },
+		{ "a + add(b * c) + d", "((a + add((b * c))) + d)" },
+		{ "add(a, b, 1, 2 * 3, 4 + 5, add(6, 7 * 8))", "add(a, b, 1, (2 * 3), (4 + 5), add(6, (7 * 8)))" },
+		{ "add(a + b + c * d / f + g)", "add((((a + b) + ((c * d) / f)) + g))" },
 	}
 	for _, tt in ipairs(tests) do
 		local input = tt[1]
@@ -702,6 +734,52 @@ local function test_function_parameter_parsing (t: testing.T)
 	end
 end
 
+local function test_call_expression_parsing (t: testing.T)
+	local input = "add(1, 2 * 3, 4 + 5);"
+	local l = lexer.new(input)
+	local p = parser.new(l)
+	local program = p:parse_program()
+	check_parser_errors(t, p)
+	local ck = program_checker {
+		expression_statement_checker(
+			call_expression_checker(
+				identifier_checker("add"),
+				{
+					integer_literal_checker(1),
+					infix_expression_checker(
+						"*",
+						integer_literal_checker(2),
+						integer_literal_checker(3)
+					),
+					infix_expression_checker(
+						"+",
+						integer_literal_checker(4),
+						integer_literal_checker(5)
+					),
+				}
+			)
+		)
+	}
+	ck(t, program)
+end
+
+local function test_let_statement (t: testing.T)
+	local tests: {{string, check_node_fn}} = {
+		{"let x = 5;", program_checker { let_statement_checker("x", integer_literal_checker(5)) } },
+		{"let y = true;", program_checker { let_statement_checker("y", boolean_literal_checker(true)) } },
+		{"let foobar = y;", program_checker { let_statement_checker("foobar", identifier_checker("y")) } },
+	}
+	for _, tt in ipairs(tests) do
+		local input = tt[1]
+		local ck = tt[2]
+		local l = lexer.new(input)
+		local p = parser.new(l)
+		local program = p:parse_program()
+		check_parser_errors(t, p)
+		ck(t, program)
+	end
+end
+
 local t = testing.new()
 test_parsing_let_statement(t)
 test_return_statements(t)
@@ -715,3 +793,5 @@ test_if_expression(t)
 test_if_else_expression(t)
 test_function_literal_parsing(t)
 test_function_parameter_parsing(t)
+test_call_expression_parsing(t)
+test_let_statement(t)

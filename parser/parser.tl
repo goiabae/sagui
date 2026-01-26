@@ -43,6 +43,8 @@ local record Parser
 	parse_block_statement: function (self): ast.BlockStatement
 	parse_function_literal: function (self): ast.Expression
 	parse_function_parameters: function (self): {ast.Identifier}
+	parse_call_expression: function (self, ast.Expression): ast.Expression
+	parse_call_arguments: function (self): {ast.Expression}
 
 	register_prefix: function (self, token.TokenType, prefix_parse_fn)
 	register_infix: function (self, token.TokenType, infix_parse_fn)
@@ -57,14 +59,15 @@ local PREFIX <const> = 6
 local CALL <const> = 7
 
 local precedences <const>: { token.TokenType:integer } = {
-	[token.EQ] =      EQUALS,
-	[token.NOT_EQ] =  EQUALS,
-	[token.LT] =      LESSGREATER,
-	[token.GT] =      LESSGREATER,
-	[token.PLUS] =    SUM,
-	[token.MINUS] =   SUM,
-	[token.SLASH] =   PRODUCT,
+	[token.EQ] = EQUALS,
+	[token.NOT_EQ] = EQUALS,
+	[token.LT] = LESSGREATER,
+	[token.GT] = LESSGREATER,
+	[token.PLUS] = SUM,
+	[token.MINUS] = SUM,
+	[token.SLASH] = PRODUCT,
 	[token.ASTERISK] = PRODUCT,
+	[token.LPAREN] = CALL,
 }
 
 function Parser:peek_precedence(): integer
@@ -117,6 +120,7 @@ end
 function Parser:parse_return_statement(): ast.ReturnStatement
 	local stmt = ast.ReturnStatement.new(self.cur_token, nil)
 	self:next_token()
+	stmt.return_value = self:parse_expression(LOWEST)
 	while not self:cur_token_is(token.SEMICOLON) do
 		self:next_token()
 	end
@@ -160,6 +164,8 @@ end
 
 function Parser:parse_integer_literal (): ast.Expression
 	local lit = ast.IntegerLiteral.new(self.cur_token, nil)
+	assert(lit is ast.IntegerLiteral)
+	assert(lit.kind == "integer_literal")
 	local value = tonumber(self.cur_token.literal)
 	if value == nil then
 		local msg = string.format("could not parse '%s' as integer", self.cur_token.literal)
@@ -216,6 +222,8 @@ function Parser:parse_let_statement(): ast.LetStatement
 	if not self:expect_peek(token.ASSIGN) then
 		return nil
 	end
+	self:next_token()
+	stmt.value = self:parse_expression(LOWEST)
 	while not self:cur_token_is(token.SEMICOLON) do
 		self:next_token()
 	end
@@ -318,6 +326,31 @@ function Parser:parse_function_parameters (): {ast.Identifier}
 	return identifiers
 end
 
+function Parser:parse_call_expression (func: ast.Expression): ast.Expression
+	local exp = ast.CallExpression.new(self.cur_token, func, nil)
+	exp.arguments = self:parse_call_arguments()
+	return exp
+end
+
+function Parser:parse_call_arguments (): {ast.Expression}
+	local args = {}
+	if self:peek_token_is(token.RPAREN) then
+		self:next_token()
+		return args
+	end
+	self:next_token()
+	table.insert(args, self:parse_expression(LOWEST))
+	while self:peek_token_is(token.COMMA) do
+		self:next_token()
+		self:next_token()
+		table.insert(args, self:parse_expression(LOWEST))
+	end
+	if not self:expect_peek(token.RPAREN) then
+		return nil
+	end
+	return args
+end
+
 local function new (l: lexer.Lexer): Parser
 	local p: Parser = setmetatable({
 		l = l,
@@ -348,6 +381,7 @@ local function new (l: lexer.Lexer): Parser
 	p:register_infix(token.NOT_EQ, p.parse_infix_expression)
 	p:register_infix(token.LT, p.parse_infix_expression)
 	p:register_infix(token.GT, p.parse_infix_expression)
+	p:register_infix(token.LPAREN, p.parse_call_expression)
 	return p
 end
 

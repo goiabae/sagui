@@ -13,6 +13,7 @@ local enum NodeType
 	"if_expression"
 	"return_statement"
 	"let_statement"
+	"function_literal"
 end
 
 local interface Node
@@ -306,6 +307,8 @@ function IfExpression:string(): string
 end
 
 local record FunctionLiteral is Expression
+	where self.kind == "function_literal"
+	kind: NodeType
 	token: token.Token
 	parameters: {Identifier}
 	body: BlockStatement
@@ -315,6 +318,7 @@ function FunctionLiteral:expression_node() end
 function FunctionLiteral:token_literal(): string return self.token.literal end
 function FunctionLiteral.new(tk: token.Token, parameters: {Identifier}, body: BlockStatement): FunctionLiteral
 	return setmetatable({
+		kind = "function_literal",
 		token = tk,
 		parameters = parameters,
 		body = body,

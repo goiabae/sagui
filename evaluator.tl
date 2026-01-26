@@ -1,18 +1,21 @@
 
 local ast = require("ast.ast")
 local object = require("object")
+local environment = require("environment")
 
 local record evaluator
-	eval: function (ast.Node): object.Object
-	eval_program: function (ast.Program): object.Object
-	eval_block_statement: function (ast.BlockStatement): object.Object
-	eval_statements: function ({ast.Statement}): object.Object
+	eval: function (ast.Node, environment.Environment): object.Object
+	eval_program: function (ast.Program, environment.Environment): object.Object
+	eval_block_statement: function (ast.BlockStatement, environment.Environment): object.Object
+	eval_statements: function ({ast.Statement}, environment.Environment): object.Object
 	eval_prefix_expression: function (string, object.Object): object.Object
 	eval_bang_operator_expression: function (object.Object): object.Object
 	eval_minus_prefix_operator_expression: function (object.Object): object.Object
 	eval_infix_expression: function (string, object.Object, object.Object): object.Object
 	eval_integer_infix_expression: function (string, object.Object, object.Object): object.Object
-	eval_if_expression: function (ast.IfExpression): object.Object
+	eval_if_expression: function (ast.IfExpression, environment.Environment): object.Object
+	eval_identifier: function (ast.Identifier, environment.Environment): object.Object
+	eval_expressions: function ({ast.Expression}, environment.Environment): {object.Object}
 
 	NULL: object.Null
 end
@@ -43,69 +46,123 @@ local function is_error (obj: object.Object): boolean
 	end
 end
 
-function evaluator.eval (node: ast.Node): object.Object
+local function extend_function_env (fn: object.Function, args: {object.Object}): environment.Environment
+	local env = environment.new_enclosed_environment(fn.env)
+	for param_idx, param in ipairs(fn.parameters) do
+		env:set(param.value, args[param_idx])
+	end
+	return env
+end
+
+local function unwrap_return_value (obj: object.Object): object.Object
+	if obj is object.ReturnValue then
+		return (obj as object.ReturnValue).value
+	else
+		return obj
+	end
+end
+
+local function apply_function (fn: object.Object, args: {object.Object}): object.Object
+	if not (fn is object.Function) then
+		return new_error("not a function: %s", fn:type())
+	end
+	local func = fn as object.Function
+	local extended_env = extend_function_env(func, args)
+	local evaluated = evaluator.eval(func.body, extended_env)
+	return unwrap_return_value(evaluated)
+end
+
+function evaluator.eval (node: ast.Node, env: environment.Environment): object.Object
 	if node is ast.Program then
-		return evaluator.eval_program((node as ast.Program))
+		return evaluator.eval_program((node as ast.Program), env)
 	elseif node is ast.ExpressionStatement then
-		return evaluator.eval((node as ast.ExpressionStatement).expression)
+		return evaluator.eval((node as ast.ExpressionStatement).expression, env)
 	elseif node is ast.IntegerLiteral then
 		return object.Integer.new((node as ast.IntegerLiteral).value)
 	elseif node is ast.Boolean then
 		return native_bool_to_boolean_object((node as ast.Boolean).value)
 	elseif node is ast.PrefixExpression then
 		local prefix = node as ast.PrefixExpression
-		local right = evaluator.eval(prefix.right)
+		local right = evaluator.eval(prefix.right, env)
 		if is_error(right) then
 			return right
 		end
 		return evaluator.eval_prefix_expression(prefix.operator, right)
 	elseif node is ast.InfixExpression then
 		local infix = node as ast.InfixExpression
-		local left = evaluator.eval(infix.left)
+		local left = evaluator.eval(infix.left, env)
 		if is_error(left) then
 			return left
 		end
-		local right = evaluator.eval(infix.right)
+		local right = evaluator.eval(infix.right, env)
 		if is_error(right) then
 			return right
 		end
 		return evaluator.eval_infix_expression(infix.operator, left, right)
 	elseif node is ast.BlockStatement then
-		return evaluator.eval_block_statement((node as ast.BlockStatement))
+		return evaluator.eval_block_statement((node as ast.BlockStatement), env)
 	elseif node is ast.IfExpression then
-		return evaluator.eval_if_expression((node as ast.IfExpression))
+		return evaluator.eval_if_expression((node as ast.IfExpression), env)
 	elseif node is ast.ReturnStatement then
-		local val = evaluator.eval((node as ast.ReturnStatement).return_value)
+		local val = evaluator.eval((node as ast.ReturnStatement).return_value, env)
 		if is_error(val) then
 			return val
 		end
 		return object.ReturnValue.new(val)
 	elseif node is ast.LetStatement then
-		local val = evaluator.eval((node as ast.LetStatement).value)
+		local let_stmt = node as ast.LetStatement
+		local val = evaluator.eval(let_stmt.value, env)
 		if is_error(val) then
 			return val
 		end
+		env:set(let_stmt.name.value, val)
+	elseif node is ast.Identifier then
+		return evaluator.eval_identifier((node as ast.Identifier), env)
+	elseif node is ast.FunctionLiteral then
+		local lit = node as ast.FunctionLiteral
+		local params = lit.parameters
+		local body = lit.body
+		return object.Function.new(params, body, env)
+	elseif node is ast.CallExpression then
+		local ce = node as ast.CallExpression
+		local func = evaluator.eval(ce.func, env)
+		if is_error(func) then
+			return func
+		end
+		local args = evaluator.eval_expressions(ce.arguments, env)
+		if #args == 1 and is_error(args[1]) then
+			return args[1]
+		end
+		return apply_function(func, args)
 	end
 	return nil
 end
 
-function evaluator.eval_program (program: ast.Program): object.Object
+function evaluator.eval_identifier (node: ast.Identifier, env: environment.Environment): object.Object
+	local val, ok = env:get(node.value)
+	if not ok then
+		return new_error("identifier not found: " .. node.value)
+	end
+	return val
+end
+
+function evaluator.eval_program (program: ast.Program, env: environment.Environment): object.Object
 	local result: object.Object
 	for _, statement in ipairs(program.statements) do
-		result = evaluator.eval(statement)
-		if result is object.ReturnValue then
+		result = evaluator.eval(statement, env)
+		if result and result is object.ReturnValue then
 			return (result as object.ReturnValue).value
-		elseif result is object.Error then
+		elseif result and result is object.Error then
 			return result
 		end
 	end
 	return result
 end
 
-function evaluator.eval_block_statement (block: ast.BlockStatement): object.Object
+function evaluator.eval_block_statement (block: ast.BlockStatement, env: environment.Environment): object.Object
 	local result: object.Object
 	for _, statement in ipairs(block.statements) do
-		result = evaluator.eval(statement)
+		result = evaluator.eval(statement, env)
 		if result ~= nil then
 			local rt = result:type()
 			if rt == object.RETURN_VALUE_OBJ or rt == object.ERROR_OBJ then
@@ -116,10 +173,10 @@ function evaluator.eval_block_statement (block: ast.BlockStatement): object.Obje
 	return result
 end
 
-function evaluator.eval_statements (stmts: {ast.Statement}): object.Object
+function evaluator.eval_statements (stmts: {ast.Statement}, env: environment.Environment): object.Object
 	local result: object.Object
 	for _, statement in ipairs(stmts) do
-		result = evaluator.eval(statement)
+		result = evaluator.eval(statement, env)
 		if result is object.ReturnValue then
 			return (result as object.ReturnValue).value
 		end
@@ -196,6 +253,18 @@ function evaluator.eval_integer_infix_expression (operator: string, left: object
 	end
 end
 
+function evaluator.eval_expressions (exps: {ast.Expression}, env: environment.Environment): {object.Object}
+	local result = {}
+	for _, e in ipairs(exps) do
+		local evaluated = evaluator.eval(e, env)
+		if is_error(evaluated) then
+			return {evaluated}
+		end
+		table.insert(result, evaluated)
+	end
+	return result
+end
+
 local function is_truthy (obj: object.Object): boolean
 	if obj == TRUE then
 		return true
@@ -208,14 +277,14 @@ local function is_truthy (obj: object.Object): boolean
 	end
 end
 
-function evaluator.eval_if_expression (ie: ast.IfExpression): object.Object
-	local condition = evaluator.eval(ie.condition)
+function evaluator.eval_if_expression (ie: ast.IfExpression, env: environment.Environment): object.Object
+	local condition = evaluator.eval(ie.condition, env)
 	if is_error(condition) then
 		return condition
 	elseif is_truthy(condition) then
-		return evaluator.eval(ie.consequence)
+		return evaluator.eval(ie.consequence, env)
 	elseif ie.alternative ~= nil then
-		return evaluator.eval(ie.alternative)
+		return evaluator.eval(ie.alternative, env)
 	else
 		return NULL
 	end

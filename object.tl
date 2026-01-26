@@ -1,15 +1,17 @@
-local type ObjectType = string
+
+local ast = require("ast.ast")
+local environment = require("environment")
+local objecti = require("objecti")
+
+local type ObjectType = objecti.ObjectType
+local type Object = objecti.Object
 
 local INTEGER_OBJ <const> = "INTEGER"
 local BOOLEAN_OBJ <const> = "BOOLEAN"
 local NULL_OBJ <const> = "NULL"
 local RETURN_VALUE_OBJ <const> = "RETURN_VALUE"
 local ERROR_OBJ <const> = "ERROR"
-
-local interface Object
-	type: function (self): ObjectType
-	inspect: function (self): string
-end
+local FUNCTION_OBJ <const> = "FUNCTION"
 
 local record Integer is Object
 	where self.kind == "INTEGER"
@@ -91,6 +93,31 @@ function Error.new (message: string): Error
 	}, { __index = Error })
 end
 
+local record Function is Object
+	where self.kind == "FUNCTION"
+	kind: string
+	parameters: {ast.Identifier}
+	body: ast.BlockStatement
+	env: environment.Environment
+end
+
+function Function:type (): ObjectType return FUNCTION_OBJ end
+function Function:inspect (): string
+	local params = {}
+	for _, p in ipairs(self.parameters) do
+		table.insert(params, p:string())
+	end
+	return "fn" .. "(" .. table.concat(params, ", ") .. ") {\n" .. self.body:string() .. "\n}"
+end
+function Function.new (parameters: {ast.Identifier}, body: ast.BlockStatement, env: environment.Environment): Function
+	return setmetatable({
+		kind = FUNCTION_OBJ,
+		parameters = parameters,
+		body = body,
+		env = env,
+	}, { __index = Function })
+end
+
 local object <const> = {
 	Object = Object,
 	ObjectType = ObjectType,
@@ -100,12 +127,14 @@ local object <const> = {
 	Null = Null,
 	ReturnValue = ReturnValue,
 	Error = Error,
+	Function = Function,
 
 	INTEGER_OBJ = INTEGER_OBJ,
 	BOOLEAN_OBJ = BOOLEAN_OBJ,
 	NULL_OBJ = NULL_OBJ,
 	RETURN_VALUE_OBJ = RETURN_VALUE_OBJ,
 	ERROR_OBJ = ERROR_OBJ,
+	FUNCTION_OBJ = FUNCTION_OBJ,
 }
 
 return object

@@ -4,13 +4,15 @@ local lexer = require("lexer.lexer")
 local object = require("object")
 local parser = require("parser.parser")
 local testing = require("testing")
+local environment = require("environment")
 
 local function test_eval (input: string): object.Object
 	local l = lexer.new(input)
 	local p = parser.new(l)
 	local program = p:parse_program()
 	assert(program ~= nil)
-	return evaluator.eval(program)
+	local env = environment.new_environment()
+	return evaluator.eval(program, env)
 end
 
 local function test_integer_object (t: testing.T, obj: object.Object, expected: integer): boolean
@@ -159,6 +161,27 @@ local function test_return_statements (t: testing.T)
       ]],
 			10,
 		},
+		{
+			[[
+        let f = fn(x) {
+          return x;
+          x + 10;
+        };
+        f(10);
+      ]],
+			10,
+		},
+		{
+			[[
+        let f = fn(x) {
+           let result = x + 10;
+           return result;
+           return 10;
+        };
+        f(10);
+      ]],
+			20,
+		},
 	}
 	for _, tt in ipairs(tests) do
 		local evaluated = test_eval(tt[1])
@@ -234,6 +257,50 @@ local function test_let_statement (t: testing.T)
 	end
 end
 
+local function test_function_object (t: testing.T)
+	local input = "fn(x) { x + 2; };"
+	local evaluated = test_eval(input)
+	if not (evaluated is object.Function) then
+		t.fatal_fail("object is not Function. got=%s", type(evaluated))
+	end
+	local fn = evaluated as object.Function
+	if #fn.parameters ~= 1 then
+		t.fatal_fail("function has wrong parameters")
+	end
+	if fn.parameters[1]:string() ~= "x" then
+		t.fatal_fail("parameter is not 'x'. got='%s'", fn.parameters[1]:string())
+	end
+	local expected_body = "(x + 2)"
+	if fn.body:string() ~= expected_body then
+		t.fatal_fail("body is not '%s'. got='%s'", expected_body, fn.body:string())
+	end
+end
+
+local function test_function_application (t: testing.T)
+	local tests = {
+		{"let identity = fn(x) { x; }; identity(5);", 5},
+		{"let identity = fn(x) { return x; }; identity(5);", 5},
+		{"let double = fn(x) { x * 2; }; double(5);", 10},
+		{"let add = fn(x, y) { x + y; }; add(5, 5);", 10},
+		{"let add = fn(x, y) { x + y; }; add(5 + 5, add(5, 5));", 20},
+		{"fn(x) { x; }(5)", 5},
+	}
+	for _, tt in ipairs(tests) do
+		test_integer_object(t, test_eval(tt[1]), tt[2])
+	end
+end
+
+local function test_closures (t: testing.T)
+	local input = [[
+    let newAdder = fn(x) {
+      fn(y) { x + y };
+    };
+    let addTwo = newAdder(2);
+    addTwo(2);
+  ]]
+	test_integer_object(t, test_eval(input), 4)
+end
+
 local t = testing.new()
 test_eval_integer_expression(t)
 test_eval_boolean_expression(t)
@@ -241,3 +308,7 @@ test_bang_operator(t)
 test_if_else_expressions(t)
 test_return_statements(t)
 test_error_handling(t)
+test_let_statement(t)
+test_function_object(t)
+test_function_application(t)
+test_closures(t)

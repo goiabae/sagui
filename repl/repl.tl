@@ -1,8 +1,8 @@
 
 local lexer = require("lexer.lexer")
-local token = require("token")
 local parser = require("parser.parser")
 local evaluator = require("evaluator")
+local environment = require("environment")
 
 local PROMPT <const> = ">> "
 
@@ -30,6 +30,7 @@ local function print_parser_errors (output: FILE, errors: {string})
 end
 
 local function start (input: FILE, output: FILE)
+	local env = environment.new_environment()
 	while true do
 		output:write(PROMPT)
 		local line = input:read()
@@ -44,7 +45,7 @@ local function start (input: FILE, output: FILE)
 			print_parser_errors(output, p:get_errors())
 		else
 			output:write("PARSED: " .. program:string() .. "\n")
-			local evaluated = evaluator.eval(program)
+			local evaluated = evaluator.eval(program, env)
 			if evaluated ~= nil then
 				output:write(evaluated:inspect() .. "\n")
 			end

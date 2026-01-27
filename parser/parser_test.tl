@@ -99,6 +99,23 @@ local function infix_expression_checker (operator: string, left_ck: check_node_f
 	end
 end
 
+local function index_expression_checker (arr_ck: check_node_fn, idx_ck: check_node_fn): check_node_fn
+	return function (t: testing.T, node: ast.Node): boolean
+		if not (node is ast.IndexExpression) then
+			t.error("exp is not ast.IndexExpression. got=%s", type(node))
+			return false
+		end
+		local index_exp = node as ast.IndexExpression
+		if not arr_ck(t, index_exp.left) then
+			return false
+		end
+		if not idx_ck(t, index_exp.index) then
+			return false
+		end
+		return true
+	end
+end
+
 local function expression_statement_checker (exp_ck: check_node_fn): check_node_fn
 	return function (t: testing.T, stmt: ast.Statement): boolean
 		local a = stmt
@@ -198,6 +215,28 @@ local function function_literal_checker (params: {string}, body_ck: check_node_f
 			end
 		end
 		return body_ck(t, func.body)
+	end
+end
+
+local function array_literal_checker (cks: {check_node_fn}): check_node_fn
+	return function (t: testing.T, node: ast.Node): boolean
+		if not node then
+			t.fatal_fail("node was nil")
+		end
+		if not (node is ast.ArrayLiteral) then
+			t.error("node not ast.ArrayLiteral. got=%s", type(node))
+			return false
+		end
+		local arr = node as ast.ArrayLiteral
+		if #arr.elements ~= #cks then
+			t.error("array literal has not %d elements. got=%d", #cks, #arr.elements)
+		end
+		for i, e in ipairs(arr.elements) do
+			if not cks[i](t, e) then
+				return false
+			end
+		end
+		return true
 	end
 end
 
@@ -632,6 +671,8 @@ local function test_operator_precedence_parsing (t: testing.T)
 		{ "a + add(b * c) + d", "((a + add((b * c))) + d)" },
 		{ "add(a, b, 1, 2 * 3, 4 + 5, add(6, 7 * 8))", "add(a, b, 1, (2 * 3), (4 + 5), add(6, (7 * 8)))" },
 		{ "add(a + b + c * d / f + g)", "add((((a + b) + ((c * d) / f)) + g))" },
+		{ "a * [1, 2, 3, 4][b * c] * d", "((a * ([1, 2, 3, 4][(b * c)])) * d)" },
+		{ "add(a * b[2], b[1], 2 * [1, 2][1])", "add((a * (b[2])), (b[1]), (2 * ([1, 2][1])))" },
 	}
 	for _, tt in ipairs(tests) do
 		local input = tt[1]
@@ -814,6 +855,53 @@ local function test_string_literal_expression (t: testing.T)
 	ck(t, program)
 end
 
+local function test_parsing_array_literals (t: testing.T)
+	local input = '[1, 2 * 2, 3 + 3];'
+	local l = lexer.new(input)
+	local p = parser.new(l)
+	local program = p:parse_program()
+	check_parser_errors(t, p)
+	local ck = program_checker {
+		expression_statement_checker(
+			array_literal_checker {
+				integer_literal_checker(1),
+				infix_expression_checker(
+					"*",
+					integer_literal_checker(2),
+					integer_literal_checker(2)
+				),
+				infix_expression_checker(
+					"+",
+					integer_literal_checker(3),
+					integer_literal_checker(3)
+				)
+			}
+		)
+	}
+	ck(t, program)
+end
+
+local function test_parsing_index_expressions (t: testing.T)
+	local input = 'myArray[1 + 1]'
+	local l = lexer.new(input)
+	local p = parser.new(l)
+	local program = p:parse_program()
+	check_parser_errors(t, p)
+	local ck = program_checker {
+		expression_statement_checker(
+			index_expression_checker(
+				identifier_checker("myArray"),
+				infix_expression_checker(
+					"+",
+					integer_literal_checker(1),
+					integer_literal_checker(1)
+				)
+			)
+		)
+	}
+	ck(t, program)
+end
+
 local t = testing.new()
 test_parsing_let_statement(t)
 test_return_statements(t)
@@ -830,3 +918,5 @@ test_function_parameter_parsing(t)
 test_call_expression_parsing(t)
 test_let_statement(t)
 test_string_literal_expression(t)
+test_parsing_array_literals(t)
+test_parsing_index_expressions(t)

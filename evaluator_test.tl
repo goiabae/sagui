@@ -118,7 +118,7 @@ end
 
 local function test_null_object (t: testing.T, obj: object.Object): boolean
 	if obj ~= evaluator.NULL then
-		t.error("object is not NULL. got=%s", type(obj))
+		t.error("object is not NULL. got=%s", obj:type())
 		return false
 	end
 	return true
@@ -233,6 +233,10 @@ local function test_error_handling (t: testing.T)
 			'"Hello" - "World"',
 			"unknown operator: STRING - STRING",
 		},
+		{
+			'999[1]',
+			"index operator not supported: INTEGER",
+		},
 	}
 	for _, tt in ipairs(tests) do
 		local evaluated = test_eval(tt[1])
@@ -294,6 +298,20 @@ local function test_function_application (t: testing.T)
 	end
 end
 
+local function test_enclosing_environment (t: testing.T)
+	local input = [[
+    let first = 10;
+    let second = 10;
+    let third = 10;
+    let ourFunction = fn(first) {
+      let second = 20;
+      first + second + third;
+    };
+    ourFunction(20) + first + second;
+  ]]
+	test_integer_object(t, test_eval(input), 70)
+end
+
 local function test_closures (t: testing.T)
 	local input = [[
     let newAdder = fn(x) {
@@ -336,6 +354,18 @@ local function test_builtin_functions (t: testing.T)
 		{'len("hello world")', 11},
 		{'len(1)', "argument to 'len' not supported, got INTEGER"},
 		{'len("one", "two")', "wrong number of arguments. got=2, want=1"},
+		{'len([1, 2, 3])', 3},
+		{'len([])', 0},
+		{'first([1, 2, 3])', 1},
+		{'first([])', nil},
+		{'first(1)', "argument to 'first' must be ARRAY, got INTEGER"},
+		{'last([1, 2, 3])', 3},
+		{'last([])', nil},
+		{'last(1)', "argument to 'last' must be ARRAY, got INTEGER"},
+		{'rest([1, 2, 3])', {2, 3}},
+		{'rest([])', nil},
+		{'push([], 1)', {1}},
+		{'push(1, 1)', "argument to 'push' must be ARRAY, got INTEGER"},
 	}
 	for _, tt in ipairs(tests) do
 		local evaluated = test_eval(tt[1])
@@ -350,6 +380,60 @@ local function test_builtin_functions (t: testing.T)
 			else
 				t.error("object is not Error. got=%s", type(evaluated))
 			end
+		elseif type(tt[2]) == "table" then
+			local expected = tt[2] as {integer}
+			if not (evaluated is object.Array) then
+				t.error("obj not Array. got=%s", type(evaluated))
+			else
+				local array = evaluated as object.Array
+				if #array.elements ~= #expected then
+					t.error("wrong num of elements. want=%d, got=%d", #expected, #array.elements)
+				else
+					for i, expected_elem in ipairs(expected) do
+						test_integer_object(t, array.elements[i], expected_elem)
+					end
+				end
+			end
+		elseif type(tt[2]) == "nil" then
+			test_null_object(t, evaluated)
+		end
+	end
+end
+
+local function test_array_literals (t: testing.T)
+	local input = "[1, 2 * 2, 3 + 3]"
+	local evaluated = test_eval(input)
+	if not (evaluated is object.Array) then
+		t.fatal_fail("object is not Array. got=%s", type(evaluated))
+	end
+	local result = evaluated as object.Array
+	if #result.elements ~= 3 then
+		t.fatal_fail("array has wrong num of elements. got=%d", #result.elements)
+	end
+	test_integer_object(t, result.elements[1], 1)
+	test_integer_object(t, result.elements[2], 4)
+	test_integer_object(t, result.elements[3], 6)
+end
+
+local function test_array_index_expressions (t: testing.T)
+	local tests = {
+		{ "[1, 2, 3][0]", 1 },
+		{ "[1, 2, 3][1]", 2 },
+		{ "[1, 2, 3][2]", 3 },
+		{ "let i = 0; [1][i];", 1 },
+		{ "[1, 2, 3][1 + 1];", 3 },
+		{ "let myArray = [1, 2, 3]; myArray[2];", 3 },
+		{ "let myArray = [1, 2, 3]; myArray[0] + myArray[1] + myArray[2];", 6 },
+		{ "let myArray = [1, 2, 3]; let i = myArray[0]; myArray[i]", 2 },
+		{ "[1, 2, 3][3]", nil },
+		{ "[1, 2, 3][-1]", nil },
+	}
+	for _, tt in ipairs(tests) do
+		local evaluated = test_eval(tt[1])
+		if type(tt[2]) == "number" then
+			test_integer_object(t, evaluated, tt[2] as integer)
+		else
+			test_null_object(t, evaluated)
 		end
 	end
 end
@@ -364,7 +448,10 @@ test_error_handling(t)
 test_let_statement(t)
 test_function_object(t)
 test_function_application(t)
+test_enclosing_environment(t)
 test_closures(t)
 test_string_literal(t)
 test_string_concatenation(t)
 test_builtin_functions(t)
+test_array_literals(t)
+test_array_index_expressions(t)

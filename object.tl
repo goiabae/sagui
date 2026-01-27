@@ -14,6 +14,7 @@ local ERROR_OBJ <const> = "ERROR"
 local FUNCTION_OBJ <const> = "FUNCTION"
 local STRING_OBJ <const> = "STRING"
 local BUILTIN_OBJ <const> = "BUILTIN"
+local ARRAY_OBJ <const> = "ARRAY"
 
 local type BuiltinFunction = function (...: Object): Object
 
@@ -152,6 +153,27 @@ function Builtin.new (fn: BuiltinFunction): Builtin
 	}, { __index = Builtin })
 end
 
+local record Array is Object
+	where self.kind == "ARRAY"
+	kind: string
+	elements: {Object}
+end
+
+function Array:type (): ObjectType return ARRAY_OBJ end
+function Array:inspect (): string
+	local elements = {}
+	for _, e in ipairs(self.elements) do
+		table.insert(elements, e:inspect())
+	end
+	return "[" .. table.concat(elements, ", ") .. "]"
+end
+function Array.new (elements: {Object}): Array
+	return setmetatable({
+		kind = ARRAY_OBJ,
+		elements = elements,
+	}, { __index = Array })
+end
+
 local object <const> = {
 	Object = Object,
 	ObjectType = ObjectType,
@@ -164,6 +186,7 @@ local object <const> = {
 	Function = Function,
 	String = String,
 	Builtin = Builtin,
+	Array = Array,
 
 	INTEGER_OBJ = INTEGER_OBJ,
 	BOOLEAN_OBJ = BOOLEAN_OBJ,
@@ -173,6 +196,7 @@ local object <const> = {
 	FUNCTION_OBJ = FUNCTION_OBJ,
 	STRING_OBJ = STRING_OBJ,
 	BUILTIN_OBJ = BUILTIN_OBJ,
+	ARRAY_OBJ = ARRAY_OBJ,
 }
 
 return object

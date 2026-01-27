@@ -17,6 +17,7 @@ local record evaluator
 	eval_if_expression: function (ast.IfExpression, environment.Environment): object.Object
 	eval_identifier: function (ast.Identifier, environment.Environment): object.Object
 	eval_expressions: function ({ast.Expression}, environment.Environment): {object.Object}
+	eval_index_expression: function (object.Object, object.Object): object.Object
 
 	NULL: object.Null
 end
@@ -40,10 +41,80 @@ local builtins: { string:object.Builtin } = {
 		local fst_arg = args[1]
 		if fst_arg is object.String then
 			return object.Integer.new(#(fst_arg as object.String).value)
+		elseif fst_arg is object.Array then
+			return object.Integer.new(#(fst_arg as object.Array).elements)
 		else
 			return new_error("argument to 'len' not supported, got %s", args[1]:type())
 		end
-	end)
+	end),
+	["first"] = object.Builtin.new(function (...: object.Object): object.Object
+		local args = { ... }
+		if #args ~= 1 then
+			return new_error("wrong number of arguments. got=%d, want=1", #args)
+		end
+		if args[1]:type() ~= object.ARRAY_OBJ then
+			return new_error("argument to 'first' must be ARRAY, got %s", args[1]:type())
+		end
+		local arr = args[1] as object.Array
+		if #arr.elements > 0 then
+			return arr.elements[1]
+		else
+			return NULL
+		end
+	end),
+	["last"] = object.Builtin.new(function (...: object.Object): object.Object
+		local args = { ... }
+		if #args ~= 1 then
+			return new_error("wrong number of arguments. got=%d, want=1", #args)
+		end
+		if args[1]:type() ~= object.ARRAY_OBJ then
+			return new_error("argument to 'last' must be ARRAY, got %s", args[1]:type())
+		end
+		local arr = args[1] as object.Array
+		local length = #arr.elements
+		if length > 0 then
+			return arr.elements[length]
+		else
+			return NULL
+		end
+	end),
+	["rest"] = object.Builtin.new(function (...: object.Object): object.Object
+		local args = { ... }
+		if #args ~= 1 then
+			return new_error("wrong number of arguments. got=%d, want=1", #args)
+		end
+		if args[1]:type() ~= object.ARRAY_OBJ then
+			return new_error("argument to 'rest' must be ARRAY, got %s", args[1]:type())
+		end
+		local arr = args[1] as object.Array
+		local length = #arr.elements
+		if length > 0 then
+			local new_elements = {}
+			for i = 2, length do
+				table.insert(new_elements, arr.elements[i])
+			end
+			return object.Array.new(new_elements)
+		else
+			return NULL
+		end
+	end),
+	["push"] = object.Builtin.new(function (...: object.Object): object.Object
+		local args = { ... }
+		if #args ~= 2 then
+			return new_error("wrong number of arguments. got=%d, want=2", #args)
+		end
+		if args[1]:type() ~= object.ARRAY_OBJ then
+			return new_error("argument to 'push' must be ARRAY, got %s", args[1]:type())
+		end
+		local arr = args[1] as object.Array
+		local length = #arr.elements
+		local new_elements = {}
+		for i = 1, length do
+			table.insert(new_elements, arr.elements[i])
+		end
+		table.insert(new_elements, args[2])
+		return object.Array.new(new_elements)
+	end),
 }
 
 local function native_bool_to_boolean_object (input: boolean): object.Boolean
@@ -155,6 +226,23 @@ function evaluator.eval (node: ast.Node, env: environment.Environment): object.O
 		return apply_function(func, args)
 	elseif node is ast.StringLiteral then
 		return object.String.new((node as ast.StringLiteral).value)
+	elseif node is ast.ArrayLiteral then
+		local elements = evaluator.eval_expressions((node as ast.ArrayLiteral).elements, env)
+		if #elements == 1 and is_error(elements[1]) then
+			return elements[1]
+		end
+		return object.Array.new(elements)
+	elseif node is ast.IndexExpression then
+		local ie = node as ast.IndexExpression
+		local left = evaluator.eval(ie.left, env)
+		if is_error(left) then
+			return left
+		end
+		local index = evaluator.eval(ie.index, env)
+		if is_error(index) then
+			return index
+		end
+		return evaluator.eval_index_expression(left, index)
 	end
 	return nil
 end
@@ -300,6 +388,25 @@ function evaluator.eval_expressions (exps: {ast.Expression}, env: environment.En
 		table.insert(result, evaluated)
 	end
 	return result
+end
+
+function evaluator.eval_array_index_expression (array: object.Object, index: object.Object): object.Object
+	local array_object = array as object.Array
+	local idx = (index as object.Integer).value
+	local max = #array_object.elements - 1
+	if idx < 0 or idx > max then
+		return NULL
+	else
+		return array_object.elements[idx+1]
+	end
+end
+
+function evaluator.eval_index_expression (left: object.Object, index: object.Object): object.Object
+	if left:type() == object.ARRAY_OBJ and index:type() == object.INTEGER_OBJ then
+		return evaluator.eval_array_index_expression(left, index)
+	else
+		return new_error("index operator not supported: %s", left:type())
+	end
 end
 
 local function is_truthy (obj: object.Object): boolean

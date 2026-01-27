@@ -301,6 +301,7 @@ local function test_next_token5 (t: testing.T)
     10 != 9;
     "foobar"
     "foo bar"
+    [1, 2];
   ]]
 	local tests: {token.Token} = {
 		{ type = token.LET, literal = "let" },
@@ -378,6 +379,12 @@ local function test_next_token5 (t: testing.T)
 		{ type = token.SEMICOLON, literal = ";" },
 		{ type = token.STRING, literal = "foobar" },
 		{ type = token.STRING, literal = "foo bar" },
+		{ type = token.LBRACKET, literal = "[" },
+		{ type = token.INT, literal = "1" },
+		{ type = token.COMMA, literal = "," },
+		{ type = token.INT, literal = "2" },
+		{ type = token.RBRACKET, literal = "]" },
+		{ type = token.SEMICOLON, literal = ";" },
 		{ type = token.EOF, literal = "" },
 	}
 	local l = lexer.new(input)

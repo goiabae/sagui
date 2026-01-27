@@ -46,6 +46,9 @@ local record Parser
 	parse_call_expression: function (self, ast.Expression): ast.Expression
 	parse_call_arguments: function (self): {ast.Expression}
 	parse_string_literal: function (self): ast.Expression
+	parse_expression_list: function (self, token.TokenType): {ast.Expression}
+	parse_array_literal: function (self): ast.Expression
+	parse_index_expression: function (self, ast.Expression): ast.Expression
 
 	register_prefix: function (self, token.TokenType, prefix_parse_fn)
 	register_infix: function (self, token.TokenType, infix_parse_fn)
@@ -58,6 +61,7 @@ local SUM <const> = 4
 local PRODUCT <const> = 5
 local PREFIX <const> = 6
 local CALL <const> = 7
+local INDEX <const> = 8
 
 local precedences <const>: { token.TokenType:integer } = {
 	[token.EQ] = EQUALS,
@@ -69,6 +73,7 @@ local precedences <const>: { token.TokenType:integer } = {
 	[token.SLASH] = PRODUCT,
 	[token.ASTERISK] = PRODUCT,
 	[token.LPAREN] = CALL,
+	[token.LBRACKET] = INDEX,
 }
 
 function Parser:peek_precedence(): integer
@@ -329,7 +334,7 @@ end
 
 function Parser:parse_call_expression (func: ast.Expression): ast.Expression
 	local exp = ast.CallExpression.new(self.cur_token, func, nil)
-	exp.arguments = self:parse_call_arguments()
+	exp.arguments = self:parse_expression_list(token.RPAREN)
 	return exp
 end
 
@@ -356,6 +361,46 @@ function Parser:parse_string_literal (): ast.Expression
 	return ast.StringLiteral.new(self.cur_token, self.cur_token.literal)
 end
 
+function Parser:parse_expression_list (end_: token.TokenType): {ast.Expression}
+	local list = {}
+
+	if self:peek_token_is(end_) then
+		self:next_token()
+		return list
+	end
+
+	self:next_token()
+	table.insert(list, self:parse_expression(LOWEST))
+
+	while self:peek_token_is(token.COMMA) do
+		self:next_token()
+		self:next_token()
+		table.insert(list, self:parse_expression(LOWEST))
+	end
+
+	if not self:expect_peek(end_) then
+		return nil
+	end
+
+	return list
+end
+
+function Parser:parse_array_literal (): ast.Expression
+	local array = ast.ArrayLiteral.new(self.cur_token, nil)
+	array.elements = self:parse_expression_list(token.RBRACKET)
+	return array
+end
+
+function Parser:parse_index_expression (left: ast.Expression): ast.Expression
+	local exp = ast.IndexExpression.new(self.cur_token, left, nil)
+	self:next_token()
+	exp.index = self:parse_expression(LOWEST)
+	if not self:expect_peek(token.RBRACKET) then
+		return nil
+	end
+	return exp
+end
+
 local function new (l: lexer.Lexer): Parser
 	local p: Parser = setmetatable({
 		l = l,
@@ -378,6 +423,7 @@ local function new (l: lexer.Lexer): Parser
 	p:register_prefix(token.IF, p.parse_if_expression)
 	p:register_prefix(token.FUNCTION, p.parse_function_literal)
 	p:register_prefix(token.STRING, p.parse_string_literal)
+	p:register_prefix(token.LBRACKET, p.parse_array_literal)
 
 	p:register_infix(token.PLUS, p.parse_infix_expression)
 	p:register_infix(token.MINUS, p.parse_infix_expression)
@@ -388,6 +434,7 @@ local function new (l: lexer.Lexer): Parser
 	p:register_infix(token.LT, p.parse_infix_expression)
 	p:register_infix(token.GT, p.parse_infix_expression)
 	p:register_infix(token.LPAREN, p.parse_call_expression)
+	p:register_infix(token.LBRACKET, p.parse_index_expression)
 	return p
 end
 

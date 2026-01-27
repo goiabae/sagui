@@ -23,6 +23,8 @@ local LPAREN <const> = "LPAREN"
 local RPAREN <const> = "RPAREN"
 local LBRACE <const> = "LBRACE"
 local RBRACE <const> = "RBRACE"
+local LBRACKET <const> = "["
+local RBRACKET <const> = "]"
 local EQ <const> = "=="
 local NOT_EQ <const> = "!="
 local STRING <const> = "STRING"
@@ -73,6 +75,8 @@ local token <const> = {
 	RPAREN = RPAREN,
 	LBRACE = LBRACE,
 	RBRACE = RBRACE,
+	LBRACKET = LBRACKET,
+	RBRACKET = RBRACKET,
 	EQ = EQ,
 	NOT_EQ = NOT_EQ,
 	STRING = STRING,

@@ -16,6 +16,8 @@ local enum NodeType
 	"function_literal"
 	"string_literal"
 	"call_expression"
+	"array_literal"
+	"index_expression"
 end
 
 local interface Node
@@ -383,6 +385,54 @@ function StringLiteral:string(): string
 	return self.token.literal
 end
 
+local record ArrayLiteral is Expression
+	where self.kind == "array_literal"
+	kind: NodeType
+	token: token.Token
+	elements: {Expression}
+end
+
+function ArrayLiteral:expression_node() end
+function ArrayLiteral:token_literal(): string return self.token.literal end
+function ArrayLiteral.new(tk: token.Token, elements: {Expression}): ArrayLiteral
+	return setmetatable({
+		kind = "array_literal",
+		token = tk,
+		elements = elements,
+	}, { __index = ArrayLiteral })
+end
+
+function ArrayLiteral:string(): string
+	local elements = {}
+	for _, el in ipairs(self.elements) do
+		table.insert(elements, el:string())
+	end
+	return "[" .. table.concat(elements, ", ") .. "]"
+end
+
+local record IndexExpression is Expression
+	where self.kind == "index_expression"
+	kind: NodeType
+	token: token.Token
+	left: Expression
+	index: Expression
+end
+
+function IndexExpression:expression_node() end
+function IndexExpression:token_literal(): string return self.token.literal end
+function IndexExpression.new(tk: token.Token, left: Expression, index: Expression): IndexExpression
+	return setmetatable({
+		kind = "index_expression",
+		token = tk,
+		left = left,
+		index = index,
+	}, { __index = IndexExpression })
+end
+
+function IndexExpression:string(): string
+	return "(" .. self.left:string() .. "[" .. self.index:string() .. "])"
+end
+
 local ast <const> = {
 	Node = Node,
 
@@ -402,6 +452,8 @@ local ast <const> = {
 	FunctionLiteral = FunctionLiteral,
 	CallExpression = CallExpression,
 	StringLiteral = StringLiteral,
+	ArrayLiteral = ArrayLiteral,
+	IndexExpression = IndexExpression,
 
 	Program = Program,
 }

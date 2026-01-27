@@ -122,6 +122,10 @@ function Lexer:next_token(): token.Token
 		tok = new_token(token.RBRACE, self.ch)
 	elseif self.ch == '"' then
 		tok = new_token(token.STRING, self:read_string())
+	elseif self.ch == "[" then
+		tok = new_token(token.LBRACKET, self.ch)
+	elseif self.ch == "]" then
+		tok = new_token(token.RBRACKET, self.ch)
 	elseif self.ch == nil then
 		tok = new_token(token.EOF, "")
 	else

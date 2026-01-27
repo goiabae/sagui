@@ -18,8 +18,12 @@ local record evaluator
 	eval_identifier: function (ast.Identifier, environment.Environment): object.Object
 	eval_expressions: function ({ast.Expression}, environment.Environment): {object.Object}
 	eval_index_expression: function (object.Object, object.Object): object.Object
+	eval_hash_literal: function (ast.HashLiteral, environment.Environment): object.Object
+	eval_hash_index_expression: function (object.Object, object.Object): object.Object
 
 	NULL: object.Null
+	TRUE: object.Boolean
+	FALSE: object.Boolean
 end
 
 local NULL <const> = object.Null.new()
@@ -27,6 +31,8 @@ local TRUE <const> = object.Boolean.new(true)
 local FALSE <const> = object.Boolean.new(false)
 
 evaluator.NULL = NULL
+evaluator.TRUE = TRUE
+evaluator.FALSE = FALSE
 
 local function new_error (format: string, ...): object.Error
 	return object.Error.new(string.format(format, ...))
@@ -114,6 +120,14 @@ local builtins: { string:object.Builtin } = {
 		end
 		table.insert(new_elements, args[2])
 		return object.Array.new(new_elements)
+	end),
+	["puts"] = object.Builtin.new(function (...: object.Object): object.Object
+		local args = { ... }
+		for i = 1, #args do
+			local a = args[i]
+			print(a:inspect())
+		end
+		return NULL
 	end),
 }
 
@@ -243,6 +257,8 @@ function evaluator.eval (node: ast.Node, env: environment.Environment): object.O
 			return index
 		end
 		return evaluator.eval_index_expression(left, index)
+	elseif node is ast.HashLiteral then
+		return evaluator.eval_hash_literal(node, env)
 	end
 	return nil
 end
@@ -404,9 +420,24 @@ end
 function evaluator.eval_index_expression (left: object.Object, index: object.Object): object.Object
 	if left:type() == object.ARRAY_OBJ and index:type() == object.INTEGER_OBJ then
 		return evaluator.eval_array_index_expression(left, index)
+	elseif left:type() == object.HASH_OBJ then
+		return evaluator.eval_hash_index_expression(left, index)
 	else
 		return new_error("index operator not supported: %s", left:type())
 	end
+end
+
+function evaluator.eval_hash_index_expression (hash: object.Object, index: object.Object): object.Object
+	local hash_object = hash as object.Hash
+	local key = index as object.Hashable
+	if key.hash_key == nil then
+		return new_error("unusable as hash key: %s", index:type())
+	end
+	local pair = hash_object.pairs[key:hash_key().value]
+	if pair == nil then
+		return NULL
+	end
+	return pair.value
 end
 
 local function is_truthy (obj: object.Object): boolean
@@ -432,6 +463,27 @@ function evaluator.eval_if_expression (ie: ast.IfExpression, env: environment.En
 	else
 		return NULL
 	end
+end
+
+function evaluator.eval_hash_literal (node: ast.HashLiteral, env: environment.Environment): object.Object
+	local pairs_ = {}
+	for kn, vn in pairs(node.pairs) do
+		local key = evaluator.eval(kn, env)
+		if is_error(key) then
+			return key
+		end
+		if (key as object.Hashable).hash_key == nil then
+			return new_error("unusable as hash key: %s", key:type())
+		end
+		local hash_key = key as object.Hashable
+		local value = evaluator.eval(vn, env)
+		if is_error(value) then
+			return value
+		end
+		local hashed = hash_key:hash_key()
+		pairs_[hashed.value] = { key = key, value = value }
+	end
+	return object.Hash.new(pairs_)
 end
 
 return evaluator

@@ -28,6 +28,7 @@ local RBRACKET <const> = "]"
 local EQ <const> = "=="
 local NOT_EQ <const> = "!="
 local STRING <const> = "STRING"
+local COLON <const> = ":"
 
 local FUNCTION <const> = "FUNCTION"
 local LET <const> = "LET"
@@ -80,6 +81,7 @@ local token <const> = {
 	EQ = EQ,
 	NOT_EQ = NOT_EQ,
 	STRING = STRING,
+	COLON = COLON,
 
 	FUNCTION = FUNCTION,
 	LET = LET,

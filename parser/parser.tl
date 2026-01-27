@@ -48,6 +48,7 @@ local record Parser
 	parse_string_literal: function (self): ast.Expression
 	parse_expression_list: function (self, token.TokenType): {ast.Expression}
 	parse_array_literal: function (self): ast.Expression
+	parse_hash_literal: function (self): ast.Expression
 	parse_index_expression: function (self, ast.Expression): ast.Expression
 
 	register_prefix: function (self, token.TokenType, prefix_parse_fn)
@@ -391,6 +392,27 @@ function Parser:parse_array_literal (): ast.Expression
 	return array
 end
 
+function Parser:parse_hash_literal (): ast.Expression
+	local hash = ast.HashLiteral.new(self.cur_token, {})
+	while not self:peek_token_is(token.RBRACE) do
+		self:next_token()
+		local key = self:parse_expression(LOWEST)
+		if not self:expect_peek(token.COLON) then
+			return nil
+		end
+		self:next_token()
+		local value = self:parse_expression(LOWEST)
+		hash.pairs[key] = value
+		if not self:peek_token_is(token.RBRACE) and not self:expect_peek(token.COMMA) then
+			return nil
+		end
+	end
+	if not self:expect_peek(token.RBRACE) then
+		return nil
+	end
+	return hash
+end
+
 function Parser:parse_index_expression (left: ast.Expression): ast.Expression
 	local exp = ast.IndexExpression.new(self.cur_token, left, nil)
 	self:next_token()
@@ -424,6 +446,7 @@ local function new (l: lexer.Lexer): Parser
 	p:register_prefix(token.FUNCTION, p.parse_function_literal)
 	p:register_prefix(token.STRING, p.parse_string_literal)
 	p:register_prefix(token.LBRACKET, p.parse_array_literal)
+	p:register_prefix(token.LBRACE, p.parse_hash_literal)
 
 	p:register_infix(token.PLUS, p.parse_infix_expression)
 	p:register_infix(token.MINUS, p.parse_infix_expression)

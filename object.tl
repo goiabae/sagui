@@ -15,8 +15,26 @@ local FUNCTION_OBJ <const> = "FUNCTION"
 local STRING_OBJ <const> = "STRING"
 local BUILTIN_OBJ <const> = "BUILTIN"
 local ARRAY_OBJ <const> = "ARRAY"
+local HASH_OBJ <const> = "HASH"
 
 local type BuiltinFunction = function (...: Object): Object
+
+local record HashKey
+	type: ObjectType
+	value: integer
+end
+
+function HashKey.new (type_: ObjectType, value: integer): HashKey
+	return setmetatable({
+		type = type_,
+		value = value,
+	}, {
+		__index = HashKey,
+		__eq = function (a: HashKey, b: HashKey): boolean
+			return a.value == b.value
+		end
+	})
+end
 
 local record Integer is Object
 	where self.kind == "INTEGER"
@@ -39,6 +57,10 @@ function Integer.new (value: integer): Integer
 	}, { __index = Integer })
 end
 
+function Integer:hash_key (): HashKey
+	return HashKey.new(self:type(), self.value)
+end
+
 local record Boolean is Object
 	where self.kind == "BOOLEAN"
 	kind: string
@@ -58,6 +80,16 @@ function Boolean.new (value: boolean): Boolean
 		kind = BOOLEAN_OBJ,
 		value = value,
 	}, { __index = Boolean })
+end
+
+function Boolean:hash_key (): HashKey
+	local value: integer
+	if self.value then
+		value = 1
+	else
+		value = 0
+	end
+	return HashKey.new(self:type(), value)
 end
 
 local record Null is Object
@@ -138,6 +170,19 @@ function String.new (value: string): String
 	}, { __index = String })
 end
 
+local function hash (str: string): integer
+	local h = 5381
+	for c in string.gmatch(str, ".") do
+		h = math.fmod(((h << 5) + h) + string.byte(c), 2147483648)
+	end
+	return h
+end
+
+function String:hash_key (): HashKey
+	local h = hash(self.value)
+	return HashKey.new(self:type(), h)
+end
+
 local record Builtin is Object
 	where self.kind == "BUILTIN"
 	kind: string
@@ -174,6 +219,37 @@ function Array.new (elements: {Object}): Array
 	}, { __index = Array })
 end
 
+local record HashPair
+	key: Object
+	value: Object
+end
+
+local record Hash is Object
+	where self.kind == "HASH"
+	kind: string
+	pairs: { integer:HashPair }
+end
+
+function Hash:type (): ObjectType return HASH_OBJ end
+function Hash:inspect (): string
+	local pairs_ = {}
+	for _, pair_ in pairs(self.pairs) do
+		table.insert(pairs_, string.format("%s: %s", pair_.key:inspect(), pair_.value:inspect()))
+	end
+	return "{" .. table.concat(pairs_, ", ") .. "}"
+end
+function Hash.new (pairs_: { integer:HashPair }): Hash
+	return setmetatable({
+		kind = HASH_OBJ,
+		pairs = pairs_,
+	}, { __index = Hash })
+end
+
+local interface Hashable
+	where self.hash_key ~= nil
+	hash_key: function (self): HashKey
+end
+
 local object <const> = {
 	Object = Object,
 	ObjectType = ObjectType,
@@ -187,6 +263,9 @@ local object <const> = {
 	String = String,
 	Builtin = Builtin,
 	Array = Array,
+	Hash = Hash,
+	HashKey = HashKey,
+	Hashable = Hashable,
 
 	INTEGER_OBJ = INTEGER_OBJ,
 	BOOLEAN_OBJ = BOOLEAN_OBJ,
@@ -197,6 +276,7 @@ local object <const> = {
 	STRING_OBJ = STRING_OBJ,
 	BUILTIN_OBJ = BUILTIN_OBJ,
 	ARRAY_OBJ = ARRAY_OBJ,
+	HASH_OBJ = HASH_OBJ,
 }
 
 return object

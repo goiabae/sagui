@@ -18,6 +18,7 @@ local enum NodeType
 	"call_expression"
 	"array_literal"
 	"index_expression"
+	"hash_literal"
 end
 
 local interface Node
@@ -433,6 +434,31 @@ function IndexExpression:string(): string
 	return "(" .. self.left:string() .. "[" .. self.index:string() .. "])"
 end
 
+local record HashLiteral is Expression
+	where self.kind == "hash_literal"
+	kind: NodeType
+	token: token.Token
+	pairs: { Expression:Expression }
+end
+
+function HashLiteral:expression_node() end
+function HashLiteral:token_literal(): string return self.token.literal end
+function HashLiteral.new(tk: token.Token, pairs_: { Expression:Expression }): HashLiteral
+	return setmetatable({
+		kind = "hash_literal",
+		token = tk,
+		pairs = pairs_,
+	}, { __index = HashLiteral })
+end
+
+function HashLiteral:string(): string
+	local pairs_ = {}
+	for key, value in pairs(self.pairs) do
+		table.insert(pairs_, key:string() .. ":" .. value:string())
+	end
+	return "{" .. table.concat(pairs_, ", ") .. "}"
+end
+
 local ast <const> = {
 	Node = Node,
 
@@ -454,6 +480,7 @@ local ast <const> = {
 	StringLiteral = StringLiteral,
 	ArrayLiteral = ArrayLiteral,
 	IndexExpression = IndexExpression,
+	HashLiteral = HashLiteral,
 
 	Program = Program,
 }

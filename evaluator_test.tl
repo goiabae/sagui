@@ -237,6 +237,10 @@ local function test_error_handling (t: testing.T)
 			'999[1]',
 			"index operator not supported: INTEGER",
 		},
+		{
+			'{"name": "Monkey"}[fn(x) { x }];',
+			"unusable as hash key: FUNCTION",
+		},
 	}
 	for _, tt in ipairs(tests) do
 		local evaluated = test_eval(tt[1])
@@ -438,6 +442,59 @@ local function test_array_index_expressions (t: testing.T)
 	end
 end
 
+local function test_hash_literals (t: testing.T)
+	local input = [[
+    let two = "two"; { "one": 10 - 9, two: 1 + 1, "thr" + "ee": 6 / 2, 4: 4, true: 5, false: 6 }
+  ]]
+	local evaluated = test_eval(input)
+	if not (evaluated is object.Hash) then
+		t.fatal_fail("eval didn't reutrn Hash. got=%s", type(evaluated))
+	end
+	local result = evaluated as object.Hash
+	local expected: { integer:integer } = {
+		[object.String.new("one"):hash_key().value] = 1,
+		[object.String.new("two"):hash_key().value] = 2,
+		[object.String.new("three"):hash_key().value] = 3,
+		[object.Integer.new(4):hash_key().value] = 4,
+		[evaluator.TRUE:hash_key().value] = 5,
+		[evaluator.FALSE:hash_key().value] = 6,
+	}
+	local rl = 0
+	for _, _ in pairs(result.pairs) do
+		rl = rl + 1
+	end
+	if rl ~= 6 then
+		t.fatal_fail("Hash has wrong number of pairs. got=%d", rl)
+	end
+	for ek, ev in pairs(expected) do
+		local p = result.pairs[ek]
+		if p == nil then
+			t.error("no pair for given key in pairs")
+		end
+		test_integer_object(t, p.value, ev)
+	end
+end
+
+local function test_hash_index_expressions (t: testing.T)
+	local tests = {
+		{ '{"foo": 5}["foo"]', 5, },
+		{ '{"foo": 5}["bar"]', nil, },
+		{ 'let key = "foo"; {"foo": 5}[key]', 5, },
+		{ '{}["foo"]', nil, },
+		{ '{5: 5}[5]', 5, },
+		{ '{true: 5}[true]', 5, },
+		{ '{false: 5}[false]', 5, },
+	}
+	for _, tt in ipairs(tests) do
+		local evaluated = test_eval(tt[1])
+		if type(tt[2]) == "number" then
+			test_integer_object(t, evaluated, tt[2] as integer)
+		else
+			test_null_object(t, evaluated)
+		end
+	end
+end
+
 local t = testing.new()
 test_eval_integer_expression(t)
 test_eval_boolean_expression(t)
@@ -455,3 +512,5 @@ test_string_concatenation(t)
 test_builtin_functions(t)
 test_array_literals(t)
 test_array_index_expressions(t)
+test_hash_literals(t)
+test_hash_index_expressions(t)

@@ -240,6 +240,30 @@ local function array_literal_checker (cks: {check_node_fn}): check_node_fn
 	end
 end
 
+local function hash_literal_checker (cks: { string:check_node_fn }): check_node_fn
+	return function (t: testing.T, node: ast.Node): boolean
+		if not node then
+			t.fatal_fail("node was nil")
+		end
+		if not (node is ast.HashLiteral) then
+			t.error("node not ast.HashLiteral. got=%s", type(node))
+			return false
+		end
+		local hash = node as ast.HashLiteral
+		for k, v in pairs(hash.pairs) do
+			if cks[k:string()] == nil then
+				t.error("hash has unexpected key %s", k:string())
+				return false
+			else
+				if not cks[k:string()](t, v) then
+					return false
+				end
+			end
+		end
+		return true
+	end
+end
+
 local function return_statement_checker (exp_ck: check_node_fn): check_node_fn
 	return function (t: testing.T, node: ast.Node): boolean
 		if not node then
@@ -902,6 +926,56 @@ local function test_parsing_index_expressions (t: testing.T)
 	ck(t, program)
 end
 
+local function test_parsing_hash_literals_string_keys (t: testing.T)
+	local input = '{"one": 1, "two": 2, "three": 3}'
+	local l = lexer.new(input)
+	local p = parser.new(l)
+	local program = p:parse_program()
+	check_parser_errors(t, p)
+	local ck = program_checker {
+		expression_statement_checker(
+			hash_literal_checker {
+				['one'] = integer_literal_checker(1),
+				['two'] = integer_literal_checker(2),
+				['three'] = integer_literal_checker(3),
+			}
+		)
+	}
+	ck(t, program)
+end
+
+local function test_parsing_empty_hash_literal (t: testing.T)
+	local input = '{}'
+	local l = lexer.new(input)
+	local p = parser.new(l)
+	local program = p:parse_program()
+	check_parser_errors(t, p)
+	local ck = program_checker {
+		expression_statement_checker(
+			hash_literal_checker {}
+		)
+	}
+	ck(t, program)
+end
+
+local function test_parsing_hash_literals_with_expressions (t: testing.T)
+	local input = '{"one": 0 + 1, "two": 10 - 8, "three": 15 / 5}'
+	local l = lexer.new(input)
+	local p = parser.new(l)
+	local program = p:parse_program()
+	check_parser_errors(t, p)
+	local ck = program_checker {
+		expression_statement_checker(
+			hash_literal_checker {
+				['one'] = infix_expression_checker("+", integer_literal_checker(0), integer_literal_checker(1)),
+				['two'] = infix_expression_checker("-", integer_literal_checker(10), integer_literal_checker(8)),
+				['three'] = infix_expression_checker("/", integer_literal_checker(15), integer_literal_checker(5)),
+			}
+		)
+	}
+	ck(t, program)
+end
+
 local t = testing.new()
 test_parsing_let_statement(t)
 test_return_statements(t)
@@ -920,3 +994,6 @@ test_let_statement(t)
 test_string_literal_expression(t)
 test_parsing_array_literals(t)
 test_parsing_index_expressions(t)
+test_parsing_hash_literals_string_keys(t)
+test_parsing_empty_hash_literal(t)
+test_parsing_hash_literals_with_expressions(t)

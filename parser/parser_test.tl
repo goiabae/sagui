@@ -31,6 +31,26 @@ local function integer_literal_checker (value: integer): check_node_fn
 	end
 end
 
+
+local function string_literal_checker (value: string): check_node_fn
+	return function (t: testing.T, il: ast.Expression): boolean
+		if not (il is ast.StringLiteral) then
+			t.error("il not ast.StringLiteral. got=%s", type(il))
+			return false
+		end
+		local integ = il as ast.StringLiteral
+		if integ.value ~= value then
+			t.error("integ.value not '%s'. got='%s'", value, integ.value)
+			return false
+		end
+		if integ:token_literal() ~= value then
+			t.error("integ:token_literal() not '%s'. got='%s'", value, integ:token_literal())
+			return false
+		end
+		return true
+	end
+end
+
 local function identifier_checker (value: string): check_node_fn
 	return function (t: testing.T, exp: ast.Expression): boolean
 		if not (exp is ast.Identifier) then
@@ -780,6 +800,20 @@ local function test_let_statement (t: testing.T)
 	end
 end
 
+local function test_string_literal_expression (t: testing.T)
+	local input = '"hello world";'
+	local l = lexer.new(input)
+	local p = parser.new(l)
+	local program = p:parse_program()
+	check_parser_errors(t, p)
+	local ck = program_checker {
+		expression_statement_checker(
+			string_literal_checker("hello world")
+		)
+	}
+	ck(t, program)
+end
+
 local t = testing.new()
 test_parsing_let_statement(t)
 test_return_statements(t)
@@ -795,3 +829,4 @@ test_function_literal_parsing(t)
 test_function_parameter_parsing(t)
 test_call_expression_parsing(t)
 test_let_statement(t)
+test_string_literal_expression(t)

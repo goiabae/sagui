@@ -13,6 +13,7 @@ local record evaluator
 	eval_minus_prefix_operator_expression: function (object.Object): object.Object
 	eval_infix_expression: function (string, object.Object, object.Object): object.Object
 	eval_integer_infix_expression: function (string, object.Object, object.Object): object.Object
+	eval_string_infix_expression: function (string, object.Object, object.Object): object.Object
 	eval_if_expression: function (ast.IfExpression, environment.Environment): object.Object
 	eval_identifier: function (ast.Identifier, environment.Environment): object.Object
 	eval_expressions: function ({ast.Expression}, environment.Environment): {object.Object}
@@ -26,16 +27,31 @@ local FALSE <const> = object.Boolean.new(false)
 
 evaluator.NULL = NULL
 
+local function new_error (format: string, ...): object.Error
+	return object.Error.new(string.format(format, ...))
+end
+
+local builtins: { string:object.Builtin } = {
+	["len"] = object.Builtin.new(function (...: object.Object): object.Object
+		local args = { ... }
+		if #args ~= 1 then
+			return new_error("wrong number of arguments. got=%d, want=1", #args)
+		end
+		local fst_arg = args[1]
+		if fst_arg is object.String then
+			return object.Integer.new(#(fst_arg as object.String).value)
+		else
+			return new_error("argument to 'len' not supported, got %s", args[1]:type())
+		end
+	end)
+}
+
 local function native_bool_to_boolean_object (input: boolean): object.Boolean
 	if input then
 		return TRUE
 	else
 		return FALSE
 	end
-end
-
-local function new_error (format: string, ...): object.Error
-	return object.Error.new(string.format(format, ...))
 end
 
 local function is_error (obj: object.Object): boolean
@@ -63,13 +79,16 @@ local function unwrap_return_value (obj: object.Object): object.Object
 end
 
 local function apply_function (fn: object.Object, args: {object.Object}): object.Object
-	if not (fn is object.Function) then
+	if fn is object.Builtin then
+		return (fn as object.Builtin).fn(table.unpack(args))
+	elseif fn is object.Function then
+		local func = fn as object.Function
+		local extended_env = extend_function_env(func, args)
+		local evaluated = evaluator.eval(func.body, extended_env)
+		return unwrap_return_value(evaluated)
+	else
 		return new_error("not a function: %s", fn:type())
 	end
-	local func = fn as object.Function
-	local extended_env = extend_function_env(func, args)
-	local evaluated = evaluator.eval(func.body, extended_env)
-	return unwrap_return_value(evaluated)
 end
 
 function evaluator.eval (node: ast.Node, env: environment.Environment): object.Object
@@ -134,16 +153,23 @@ function evaluator.eval (node: ast.Node, env: environment.Environment): object.O
 			return args[1]
 		end
 		return apply_function(func, args)
+	elseif node is ast.StringLiteral then
+		return object.String.new((node as ast.StringLiteral).value)
 	end
 	return nil
 end
 
 function evaluator.eval_identifier (node: ast.Identifier, env: environment.Environment): object.Object
-	local val, ok = env:get(node.value)
-	if not ok then
-		return new_error("identifier not found: " .. node.value)
+	do
+		local val, ok = env:get(node.value)
+		if ok then
+			return val
+		end
 	end
-	return val
+	if builtins[node.value] ~= nil then
+		return builtins[node.value]
+	end
+	return new_error("identifier not found: " .. node.value)
 end
 
 function evaluator.eval_program (program: ast.Program, env: environment.Environment): object.Object
@@ -218,6 +244,8 @@ end
 function evaluator.eval_infix_expression (operator: string, left: object.Object, right: object.Object): object.Object
 	if left:type() == object.INTEGER_OBJ and right:type() == object.INTEGER_OBJ then
 		return evaluator.eval_integer_infix_expression(operator, left, right)
+	elseif left:type() == object.STRING_OBJ and right:type() == object.STRING_OBJ then
+		return evaluator.eval_string_infix_expression(operator, left, right)
 	elseif operator == "==" then
 		return native_bool_to_boolean_object(left == right)
 	elseif operator == "!=" then
@@ -251,6 +279,15 @@ function evaluator.eval_integer_infix_expression (operator: string, left: object
 	else
 		return new_error("unknown operator: %s %s %s", left:type(), operator, right:type())
 	end
+end
+
+function evaluator.eval_string_infix_expression (operator: string, left: object.Object, right: object.Object): object.Object
+	if operator ~= "+" then
+		return new_error("unknown operator: %s %s %s", left:type(), operator, right:type())
+	end
+	local left_val = (left as object.String).value
+	local right_val = (right as object.String).value
+	return object.String.new(left_val .. right_val)
 end
 
 function evaluator.eval_expressions (exps: {ast.Expression}, env: environment.Environment): {object.Object}

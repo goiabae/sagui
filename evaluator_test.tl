@@ -229,6 +229,10 @@ local function test_error_handling (t: testing.T)
 			"foobar",
 			"identifier not found: foobar",
 		},
+		{
+			'"Hello" - "World"',
+			"unknown operator: STRING - STRING",
+		},
 	}
 	for _, tt in ipairs(tests) do
 		local evaluated = test_eval(tt[1])
@@ -301,6 +305,55 @@ local function test_closures (t: testing.T)
 	test_integer_object(t, test_eval(input), 4)
 end
 
+local function test_string_literal (t: testing.T)
+	local input = '"Hello World!"'
+	local evaluated = test_eval(input)
+	if not (evaluated is object.String) then
+		t.fatal_fail("object is not String. got=%s", type(evaluated))
+	end
+	local str = evaluated as object.String
+	if str.value ~= "Hello World!" then
+		t.error("String has wrong value. got='%s'", str.value)
+	end
+end
+
+local function test_string_concatenation (t: testing.T)
+	local input = '"Hello" + " " + "World!"'
+	local evaluated = test_eval(input)
+	if not (evaluated is object.String) then
+		t.fatal_fail("object is not String. got=%s", type(evaluated))
+	end
+	local str = evaluated as object.String
+	if str.value ~= "Hello World!" then
+		t.error("String has wrong value. got='%s'", str.value)
+	end
+end
+
+local function test_builtin_functions (t: testing.T)
+	local tests: {{string, any}} = {
+		{'len("")', 0},
+		{'len("four")', 4},
+		{'len("hello world")', 11},
+		{'len(1)', "argument to 'len' not supported, got INTEGER"},
+		{'len("one", "two")', "wrong number of arguments. got=2, want=1"},
+	}
+	for _, tt in ipairs(tests) do
+		local evaluated = test_eval(tt[1])
+		if type(tt[2]) == "number" then
+			test_integer_object(t, evaluated, tt[2] as integer)
+		elseif type(tt[2]) == "string" then
+			if evaluated is object.Error then
+				local err = evaluated as object.Error
+				if err.message ~= tt[2] then
+					t.error("wrong error message. expected='%s', got='%s'", tt[2], err.message)
+				end
+			else
+				t.error("object is not Error. got=%s", type(evaluated))
+			end
+		end
+	end
+end
+
 local t = testing.new()
 test_eval_integer_expression(t)
 test_eval_boolean_expression(t)
@@ -312,3 +365,6 @@ test_let_statement(t)
 test_function_object(t)
 test_function_application(t)
 test_closures(t)
+test_string_literal(t)
+test_string_concatenation(t)
+test_builtin_functions(t)

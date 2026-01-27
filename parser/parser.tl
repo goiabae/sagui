@@ -45,6 +45,7 @@ local record Parser
 	parse_function_parameters: function (self): {ast.Identifier}
 	parse_call_expression: function (self, ast.Expression): ast.Expression
 	parse_call_arguments: function (self): {ast.Expression}
+	parse_string_literal: function (self): ast.Expression
 
 	register_prefix: function (self, token.TokenType, prefix_parse_fn)
 	register_infix: function (self, token.TokenType, infix_parse_fn)
@@ -351,6 +352,10 @@ function Parser:parse_call_arguments (): {ast.Expression}
 	return args
 end
 
+function Parser:parse_string_literal (): ast.Expression
+	return ast.StringLiteral.new(self.cur_token, self.cur_token.literal)
+end
+
 local function new (l: lexer.Lexer): Parser
 	local p: Parser = setmetatable({
 		l = l,
@@ -372,6 +377,7 @@ local function new (l: lexer.Lexer): Parser
 	p:register_prefix(token.LPAREN, p.parse_grouped_expression)
 	p:register_prefix(token.IF, p.parse_if_expression)
 	p:register_prefix(token.FUNCTION, p.parse_function_literal)
+	p:register_prefix(token.STRING, p.parse_string_literal)
 
 	p:register_infix(token.PLUS, p.parse_infix_expression)
 	p:register_infix(token.MINUS, p.parse_infix_expression)

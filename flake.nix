@@ -3,6 +3,7 @@
     let pkgs = nixpkgs.legacyPackages.x86_64-linux; in
 
     let fetchFromGitHub = pkgs.fetchFromGitHub; in
+    let fetchFromGitea = pkgs.fetchFromGitea; in
     let fetchurl = pkgs.fetchurl; in
     let buildLuarocksPackage = pkgs.luaPackages.buildLuarocksPackage; in
 
@@ -12,6 +13,11 @@
     let lusc_luv = pkgs.luaPackages.lusc_luv; in
     let luv = pkgs.luaPackages.luv; in
     let tl = pkgs.luaPackages.tl; in
+    let dkjson = pkgs.luaPackages.dkjson; in
+    let cyan = pkgs.luaPackages.cyan; in
+    let penlight = pkgs.luaPackages.penlight; in
+    let busted = pkgs.luaPackages.busted; in
+    let dkjson = pkgs.luaPackages.dkjson; in
     let dkjson = pkgs.luaPackages.dkjson; in
 
     # Copied from nixpkgs nixos-25.11 tag
@@ -62,7 +68,51 @@
       }
     ) { inherit argparse buildLuarocksPackage dkjson fetchFromGitHub fetchurl inspect luafilesystem lusc_luv luv tl; }; in
 
+    let busted-tl = pkgs.callPackage (
+      { buildLuarocksPackage
+      , cyan
+      , penlight
+      , busted
+      , tl
+      , fetchurl
+      , fetchFromGitea
+      }:
+
+      buildLuarocksPackage {
+        pname = "busted-tl";
+        version = "1.0.0";
+        knownRockspec =
+          (fetchurl {
+            url = "https://forgejo.aireone.xyz/Aire-One/busted-tl/raw/commit/3623ef01f264cd8bd452d8cd3387ba4436fead4d/busted-tl-dev-1.rockspec";
+            sha256 = "sha256-e/+xg9zxREaDHN14pROQwuENnyPtjfMcKDjAhDDnnAM=";
+          }).outPath;
+        src = fetchFromGitea {
+          domain = "forgejo.aireone.xyz";
+          owner = "Aire-One";
+          repo = "busted-tl";
+          rev = "v1.0.0";
+          hash = "sha256-lTCTePaAYW4pqbJznos3BM0I0/Vaw13TNCCatmQjIJo=";
+        };
+
+        propagatedBuildInputs = [
+          cyan
+          penlight
+          busted
+          tl
+        ];
+
+        meta = {
+          homepage = "https://gitea.aireone.xyz/Aire-One/busted-tl";
+          description = "Busted-tl is a new Loader for Busted that adds Teal support.";
+          license.fullName = "MIT";
+        };
+      }
+    ) { inherit buildLuarocksPackage cyan penlight busted tl fetchurl fetchFromGitea; }; in
+
     {
+      packages.x86_64-linux = {
+        inherit busted-tl;
+      };
       devShells.x86_64-linux.default = import ./shell.nix { inherit pkgs teal-language-server; };
     };
 }

@@ -14,6 +14,8 @@ local enum NodeType
 	"return_statement"
 	"let_statement"
 	"function_literal"
+	"string_literal"
+	"call_expression"
 end
 
 local interface Node
@@ -334,6 +336,8 @@ function FunctionLiteral:string(): string
 end
 
 local record CallExpression is Expression
+	where self.kind == "call_expression"
+	kind: NodeType
 	token: token.Token
 	func: Expression
 	arguments: {Expression}
@@ -343,6 +347,7 @@ function CallExpression:expression_node() end
 function CallExpression:token_literal(): string return self.token.literal end
 function CallExpression.new(tk: token.Token, func: Expression, arguments: {Expression}): CallExpression
 	return setmetatable({
+		kind = "call_expression",
 		token = tk,
 		func = func,
 		arguments = arguments,
@@ -355,6 +360,27 @@ function CallExpression:string(): string
 		table.insert(args, a:string())
 	end
 	return self.func:string() ..  "(" .. table.concat(args, ", ") .. ")"
+end
+
+local record StringLiteral is Expression
+	where self.kind == "string_literal"
+	kind: NodeType
+	token: token.Token
+	value: string
+end
+
+function StringLiteral:expression_node() end
+function StringLiteral:token_literal(): string return self.token.literal end
+function StringLiteral.new(tk: token.Token, value: string): StringLiteral
+	return setmetatable({
+		kind = "string_literal",
+		token = tk,
+		value = value,
+	}, { __index = StringLiteral })
+end
+
+function StringLiteral:string(): string
+	return self.token.literal
 end
 
 local ast <const> = {
@@ -375,6 +401,7 @@ local ast <const> = {
 	IfExpression = IfExpression,
 	FunctionLiteral = FunctionLiteral,
 	CallExpression = CallExpression,
+	StringLiteral = StringLiteral,
 
 	Program = Program,
 }

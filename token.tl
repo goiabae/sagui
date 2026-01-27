@@ -25,6 +25,7 @@ local LBRACE <const> = "LBRACE"
 local RBRACE <const> = "RBRACE"
 local EQ <const> = "=="
 local NOT_EQ <const> = "!="
+local STRING <const> = "STRING"
 
 local FUNCTION <const> = "FUNCTION"
 local LET <const> = "LET"
@@ -74,6 +75,7 @@ local token <const> = {
 	RBRACE = RBRACE,
 	EQ = EQ,
 	NOT_EQ = NOT_EQ,
+	STRING = STRING,
 
 	FUNCTION = FUNCTION,
 	LET = LET,

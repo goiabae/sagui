@@ -62,6 +62,17 @@ function Lexer:skip_whitespace()
 	end
 end
 
+function Lexer:read_string(): string
+	local position = self.position + 1
+	while true do
+		self:read_char()
+		if self.ch == '"' or self.ch == nil then
+			break
+		end
+	end
+	return self.input:sub(position, self.position-1)
+end
+
 function Lexer:next_token(): token.Token
 	local tok: token.Token
 	self:skip_whitespace()
@@ -109,6 +120,8 @@ function Lexer:next_token(): token.Token
 		tok = new_token(token.LBRACE, self.ch)
 	elseif self.ch == "}" then
 		tok = new_token(token.RBRACE, self.ch)
+	elseif self.ch == '"' then
+		tok = new_token(token.STRING, self:read_string())
 	elseif self.ch == nil then
 		tok = new_token(token.EOF, "")
 	else

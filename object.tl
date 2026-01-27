@@ -12,6 +12,10 @@ local NULL_OBJ <const> = "NULL"
 local RETURN_VALUE_OBJ <const> = "RETURN_VALUE"
 local ERROR_OBJ <const> = "ERROR"
 local FUNCTION_OBJ <const> = "FUNCTION"
+local STRING_OBJ <const> = "STRING"
+local BUILTIN_OBJ <const> = "BUILTIN"
+
+local type BuiltinFunction = function (...: Object): Object
 
 local record Integer is Object
 	where self.kind == "INTEGER"
@@ -118,6 +122,36 @@ function Function.new (parameters: {ast.Identifier}, body: ast.BlockStatement, e
 	}, { __index = Function })
 end
 
+local record String is Object
+	where self.kind == "STRING"
+	kind: string
+	value: string
+end
+
+function String:type (): ObjectType return STRING_OBJ end
+function String:inspect (): string return self.value end
+function String.new (value: string): String
+	return setmetatable({
+		kind = STRING_OBJ,
+		value = value,
+	}, { __index = String })
+end
+
+local record Builtin is Object
+	where self.kind == "BUILTIN"
+	kind: string
+	fn: BuiltinFunction
+end
+
+function Builtin:type (): ObjectType return BUILTIN_OBJ end
+function Builtin:inspect (): string return "builtin_function" end
+function Builtin.new (fn: BuiltinFunction): Builtin
+	return setmetatable({
+		kind = BUILTIN_OBJ,
+		fn = fn,
+	}, { __index = Builtin })
+end
+
 local object <const> = {
 	Object = Object,
 	ObjectType = ObjectType,
@@ -128,6 +162,8 @@ local object <const> = {
 	ReturnValue = ReturnValue,
 	Error = Error,
 	Function = Function,
+	String = String,
+	Builtin = Builtin,
 
 	INTEGER_OBJ = INTEGER_OBJ,
 	BOOLEAN_OBJ = BOOLEAN_OBJ,
@@ -135,6 +171,8 @@ local object <const> = {
 	RETURN_VALUE_OBJ = RETURN_VALUE_OBJ,
 	ERROR_OBJ = ERROR_OBJ,
 	FUNCTION_OBJ = FUNCTION_OBJ,
+	STRING_OBJ = STRING_OBJ,
+	BUILTIN_OBJ = BUILTIN_OBJ,
 }
 
 return object

@@ -10,7 +10,8 @@ local function new (): T
 	return {
 		fatal_fail = function (str: string, ...)
 			print("FATAL: " .. string.format(str, ...))
-			error()
+			os.exit(1)
+			error("FATAL: " .. string.format(str, ...))
 		end,
 		error = function (str: string, ...)
 			print("ERROR: " .. string.format(str, ...))

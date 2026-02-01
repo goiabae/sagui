@@ -4,7 +4,8 @@ local testing = require("testing")
 
 local function test_make (t: testing.T)
 	local tests: {{code.Opcode, {integer}, {integer}}} = {
-		{ code.OpConstant, {65534}, { code.OpConstant, 255, 254 } }
+		{ code.OpConstant, {65534}, { code.OpConstant, 255, 254 } },
+		{ code.OpAdd, {}, { code.OpAdd } },
 	}
 	for _, tt in ipairs(tests) do
 		local instruction = code.make(tt[1], table.unpack(tt[2]))
@@ -21,14 +22,14 @@ end
 
 local function test_instruction_string (t: testing.T)
 	local instructions = {
-		code.make(code.OpConstant, 1),
+		code.make(code.OpAdd),
 		code.make(code.OpConstant, 2),
 		code.make(code.OpConstant, 65535),
 	}
 	local expected =
-		"0000 OpConstant 1\n" ..
-		"0003 OpConstant 2\n" ..
-		"0006 OpConstant 65535\n"
+		"0000 OpAdd\n" ..
+		"0001 OpConstant 2\n" ..
+		"0004 OpConstant 65535\n"
 	local concatted = code.Instructions.new()
 	for _, ins in ipairs(instructions) do
 		for _, i in ipairs(ins) do

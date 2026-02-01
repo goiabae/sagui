@@ -116,6 +116,7 @@ local function test_integer_arithmetic (t: testing.T)
 			expected_instructions = {
 				code.Instructions.new(code.make(code.OpConstant, 0)),
 				code.Instructions.new(code.make(code.OpConstant, 1)),
+				code.Instructions.new(code.make(code.OpAdd)),
 			},
 		},
 	}

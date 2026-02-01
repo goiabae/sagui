@@ -46,13 +46,19 @@ function compiler.Compiler:compile (node: ast.Node): string
 			return err
 		end
 	elseif node is ast.InfixExpression then
-		local err = self:compile((node as ast.InfixExpression).left)
+		local infix = node as ast.InfixExpression
+		local err = self:compile(infix.left)
 		if err ~= nil then
 			return err
 		end
-		err = self:compile((node as ast.InfixExpression).right)
+		err = self:compile(infix.right)
 		if err ~= nil then
 			return err
+		end
+		if infix.operator == "+" then
+			self:emit(code.OpAdd)
+		else
+			return string.format("unknown operator %s", infix.operator)
 		end
 	elseif node is ast.IntegerLiteral then
 		local integer = object.Integer.new(node.value)

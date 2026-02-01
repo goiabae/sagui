@@ -19,16 +19,20 @@ local record code
 	end
 
 	OpConstant: Opcode
+	OpAdd: Opcode
 
 	definitions: { Opcode:Definition }
 	lookup: function (byte): (Definition, string)
 	make: function (Opcode, ...: integer): {byte}
 	read_operands: function (Definition, Instructions): ({integer}, integer)
+	read_u16: function ({byte}, integer): integer
 end
 
-code.OpConstant= 0
+code.OpConstant = 0
+code.OpAdd = 1
 code.definitions = {
 	[code.OpConstant] = { name = "OpConstant", operand_widths = {2} },
+	[code.OpAdd] = { name = "OpAdd", operand_widths = {} },
 }
 
 function code.Instructions:append_bytes (bytes: {code.byte})
@@ -117,7 +121,7 @@ function code.make (op: code.Opcode, ...: integer): {code.byte}
 	return instruction
 end
 
-local function read_u16 (bytes: {code.byte}, offset: integer): integer
+function code.read_u16 (bytes: {code.byte}, offset: integer): integer
 	if bytes[offset] == nil then
 		error(string.format("bytes (len %d) with offset %d was nil", #bytes, offset))
 	end
@@ -130,7 +134,7 @@ function code.read_operands (def: code.Definition, ins: code.Instructions): ({in
 	local offset = 0
 	for i, width in ipairs(def.operand_widths) do
 		if width == 2 then
-			operands[i] = read_u16(ins.bytes, offset+1)
+			operands[i] = code.read_u16(ins.bytes, offset+1)
 		end
 		offset = offset + width
 	end
@@ -142,7 +146,9 @@ function code.Instructions:fmt_instruction (def: code.Definition, operands: {int
 	if #operands ~= operand_count then
 		return string.format("ERROR: operand len %d does not match defined %d\n", #operands, operand_count)
 	end
-	if operand_count == 1 then
+	if operand_count == 0 then
+		return def.name
+	elseif operand_count == 1 then
 		return string.format("%s %d", def.name, operands[1])
 	end
 	return string.format("ERROR: unhandled operand_count for %s\n", def.name)

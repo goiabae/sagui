@@ -3,6 +3,8 @@ local lexer = require("lexer.lexer")
 local parser = require("parser.parser")
 local evaluator = require("evaluator")
 local environment = require("environment")
+local compiler = require("compiler")
+local vm = require("vm")
 
 local PROMPT <const> = ">> "
 
@@ -45,10 +47,24 @@ local function start (input: FILE, output: FILE)
 			print_parser_errors(output, p:get_errors())
 		else
 			output:write("PARSED: " .. program:string() .. "\n")
-			local evaluated = evaluator.eval(program, env)
-			if evaluated ~= nil then
-				output:write(evaluated:inspect() .. "\n")
+			local comp = compiler.new()
+			local err = comp:compile(program)
+			if err ~= nil then
+				output:write(string.format("Woops! Compilation failed:\n %s\n", err))
+			else
+				local machine = vm.new(comp:bytecode())
+				local err = machine:run()
+				if err ~= nil then
+					output:write(string.format("Woops! Executing bytecode failed:\n %s\n", err))
+				else
+					local stack_top = machine:stack_top()
+					output:write(stack_top:inspect() .. "\n")
+				end
 			end
+			-- local evaluated = evaluator.eval(program, env)
+			-- if evaluated ~= nil then
+			-- 	output:write(evaluated:inspect() .. "\n")
+			-- end
 		end
 	end
 end

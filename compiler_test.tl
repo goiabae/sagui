@@ -79,20 +79,20 @@ local function run_compiler_test (t: testing.T, tests: {CompilerTestCase})
 		do
 			local err = c:compile(program)
 			if err ~= nil then
-				t.fatal_fail("compiler error: %s", err)
+				t:fatal_fail("compiler error: %s", err)
 			end
 		end
 		local bytecode = c:bytecode()
 		do
 			local err = test_instructions(tt.expected_instructions, bytecode.instructions)
 			if err ~= nil then
-				t.fatal_fail("test_instructions failed: %s", err)
+				t:fatal_fail("test_instructions failed: %s", err)
 			end
 		end
 		do
 			local err = test_constants(t, tt.expected_constants, bytecode.constants)
 			if err ~= nil then
-				t.fatal_fail("test_constants failed: %s", err)
+				t:fatal_fail("test_constants failed: %s", err)
 			end
 		end
 	end
@@ -174,7 +174,6 @@ local function test_integer_arithmetic (t: testing.T)
 end
 
 local function test_boolean_expressions (t: testing.T)
-	print("[compiler/test_boolean_expressions]")
 	local tests = {
 		{
 			input = "true",
@@ -265,6 +264,10 @@ local function test_boolean_expressions (t: testing.T)
 	run_compiler_test(t, tests)
 end
 
-local t = testing.new()
-test_integer_arithmetic(t)
-test_boolean_expressions(t)
+return {
+	domain = "compiler",
+	test_cases = {
+		{ name = "integer_arithmetic", func = test_integer_arithmetic },
+		{ name = "boolean_expressions", func = test_boolean_expressions },
+	}
+}

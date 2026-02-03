@@ -17,16 +17,16 @@ end
 
 local function test_integer_object (t: testing.T, obj: object.Object, expected: integer): boolean
 	if not obj then
-		t.error("object was nil")
+		t:error("object was nil")
 		return false
 	end
 	if not (obj is object.Integer) then
-		t.error("object is not Integer. got=%s", type(obj))
+		t:error("object is not Integer. got=%s", type(obj))
 		return false
 	end
 	local result = obj as object.Integer
 	if result.value ~= expected then
-		t.error("object has wrong value. got=%d, want=%d", result.value, expected)
+		t:error("object has wrong value. got=%d, want=%d", result.value, expected)
 		return false
 	end
 	return true
@@ -58,16 +58,16 @@ end
 
 local function test_boolean_object (t: testing.T, obj: object.Object, expected: boolean): boolean
 	if not obj then
-		t.error("object was nil")
+		t:error("object was nil")
 		return false
 	end
 	if not (obj is object.Boolean) then
-		t.error("object is not Boolean. got=%s", type(obj))
+		t:error("object is not Boolean. got=%s", type(obj))
 		return false
 	end
 	local result = obj as object.Boolean
 	if result.value ~= expected then
-		t.error("object has wrong value. got=%s, want=%t", result.value and "true" or "false", expected and "true" or "false")
+		t:error("object has wrong value. got=%s, want=%t", result.value and "true" or "false", expected and "true" or "false")
 		return false
 	end
 	return true
@@ -118,7 +118,7 @@ end
 
 local function test_null_object (t: testing.T, obj: object.Object): boolean
 	if obj ~= evaluator.NULL then
-		t.error("object is not NULL. got=%s", obj:type())
+		t:error("object is not NULL. got=%s", obj:type())
 		return false
 	end
 	return true
@@ -245,13 +245,13 @@ local function test_error_handling (t: testing.T)
 	for _, tt in ipairs(tests) do
 		local evaluated = test_eval(tt[1])
 		if not evaluated then
-			t.error("error object was nil")
+			t:error("error object was nil")
 		elseif not (evaluated is object.Error) then
-			t.error("no error object returned. got=%s", evaluated:type())
+			t:error("no error object returned. got=%s", evaluated:type())
 		else
 			local err_obj = evaluated as object.Error
 			if err_obj.message ~= tt[2] then
-				t.error("wrong error message. expected='%s', got='%s'", tt[2], err_obj.message)
+				t:error("wrong error message. expected='%s', got='%s'", tt[2], err_obj.message)
 			end
 		end
 	end
@@ -273,18 +273,18 @@ local function test_function_object (t: testing.T)
 	local input = "fn(x) { x + 2; };"
 	local evaluated = test_eval(input)
 	if not (evaluated is object.Function) then
-		t.fatal_fail("object is not Function. got=%s", type(evaluated))
+		t:fatal_fail("object is not Function. got=%s", type(evaluated))
 	end
 	local fn = evaluated as object.Function
 	if #fn.parameters ~= 1 then
-		t.fatal_fail("function has wrong parameters")
+		t:fatal_fail("function has wrong parameters")
 	end
 	if fn.parameters[1]:string() ~= "x" then
-		t.fatal_fail("parameter is not 'x'. got='%s'", fn.parameters[1]:string())
+		t:fatal_fail("parameter is not 'x'. got='%s'", fn.parameters[1]:string())
 	end
 	local expected_body = "(x + 2)"
 	if fn.body:string() ~= expected_body then
-		t.fatal_fail("body is not '%s'. got='%s'", expected_body, fn.body:string())
+		t:fatal_fail("body is not '%s'. got='%s'", expected_body, fn.body:string())
 	end
 end
 
@@ -331,11 +331,11 @@ local function test_string_literal (t: testing.T)
 	local input = '"Hello World!"'
 	local evaluated = test_eval(input)
 	if not (evaluated is object.String) then
-		t.fatal_fail("object is not String. got=%s", type(evaluated))
+		t:fatal_fail("object is not String. got=%s", type(evaluated))
 	end
 	local str = evaluated as object.String
 	if str.value ~= "Hello World!" then
-		t.error("String has wrong value. got='%s'", str.value)
+		t:error("String has wrong value. got='%s'", str.value)
 	end
 end
 
@@ -343,11 +343,11 @@ local function test_string_concatenation (t: testing.T)
 	local input = '"Hello" + " " + "World!"'
 	local evaluated = test_eval(input)
 	if not (evaluated is object.String) then
-		t.fatal_fail("object is not String. got=%s", type(evaluated))
+		t:fatal_fail("object is not String. got=%s", type(evaluated))
 	end
 	local str = evaluated as object.String
 	if str.value ~= "Hello World!" then
-		t.error("String has wrong value. got='%s'", str.value)
+		t:error("String has wrong value. got='%s'", str.value)
 	end
 end
 
@@ -379,19 +379,19 @@ local function test_builtin_functions (t: testing.T)
 			if evaluated is object.Error then
 				local err = evaluated as object.Error
 				if err.message ~= tt[2] then
-					t.error("wrong error message. expected='%s', got='%s'", tt[2], err.message)
+					t:error("wrong error message. expected='%s', got='%s'", tt[2], err.message)
 				end
 			else
-				t.error("object is not Error. got=%s", type(evaluated))
+				t:error("object is not Error. got=%s", type(evaluated))
 			end
 		elseif type(tt[2]) == "table" then
 			local expected = tt[2] as {integer}
 			if not (evaluated is object.Array) then
-				t.error("obj not Array. got=%s", type(evaluated))
+				t:error("obj not Array. got=%s", type(evaluated))
 			else
 				local array = evaluated as object.Array
 				if #array.elements ~= #expected then
-					t.error("wrong num of elements. want=%d, got=%d", #expected, #array.elements)
+					t:error("wrong num of elements. want=%d, got=%d", #expected, #array.elements)
 				else
 					for i, expected_elem in ipairs(expected) do
 						test_integer_object(t, array.elements[i], expected_elem)
@@ -408,11 +408,11 @@ local function test_array_literals (t: testing.T)
 	local input = "[1, 2 * 2, 3 + 3]"
 	local evaluated = test_eval(input)
 	if not (evaluated is object.Array) then
-		t.fatal_fail("object is not Array. got=%s", type(evaluated))
+		t:fatal_fail("object is not Array. got=%s", type(evaluated))
 	end
 	local result = evaluated as object.Array
 	if #result.elements ~= 3 then
-		t.fatal_fail("array has wrong num of elements. got=%d", #result.elements)
+		t:fatal_fail("array has wrong num of elements. got=%d", #result.elements)
 	end
 	test_integer_object(t, result.elements[1], 1)
 	test_integer_object(t, result.elements[2], 4)
@@ -448,7 +448,7 @@ local function test_hash_literals (t: testing.T)
   ]]
 	local evaluated = test_eval(input)
 	if not (evaluated is object.Hash) then
-		t.fatal_fail("eval didn't reutrn Hash. got=%s", type(evaluated))
+		t:fatal_fail("eval didn't reutrn Hash. got=%s", type(evaluated))
 	end
 	local result = evaluated as object.Hash
 	local expected: { integer:integer } = {
@@ -464,12 +464,12 @@ local function test_hash_literals (t: testing.T)
 		rl = rl + 1
 	end
 	if rl ~= 6 then
-		t.fatal_fail("Hash has wrong number of pairs. got=%d", rl)
+		t:fatal_fail("Hash has wrong number of pairs. got=%d", rl)
 	end
 	for ek, ev in pairs(expected) do
 		local p = result.pairs[ek]
 		if p == nil then
-			t.error("no pair for given key in pairs")
+			t:error("no pair for given key in pairs")
 		end
 		test_integer_object(t, p.value, ev)
 	end
@@ -495,22 +495,26 @@ local function test_hash_index_expressions (t: testing.T)
 	end
 end
 
-local t = testing.new()
-test_eval_integer_expression(t)
-test_eval_boolean_expression(t)
-test_bang_operator(t)
-test_if_else_expressions(t)
-test_return_statements(t)
-test_error_handling(t)
-test_let_statement(t)
-test_function_object(t)
-test_function_application(t)
-test_enclosing_environment(t)
-test_closures(t)
-test_string_literal(t)
-test_string_concatenation(t)
-test_builtin_functions(t)
-test_array_literals(t)
-test_array_index_expressions(t)
-test_hash_literals(t)
-test_hash_index_expressions(t)
+return {
+	domain = "evaluator",
+	test_cases = {
+		{ name = "eval_integer_expression", func = test_eval_integer_expression },
+		{ name = "eval_boolean_expression", func = test_eval_boolean_expression },
+		{ name = "bang_operator", func = test_bang_operator },
+		{ name = "if_else_expressions", func = test_if_else_expressions },
+		{ name = "return_statements", func = test_return_statements },
+		{ name = "error_handling", func = test_error_handling },
+		{ name = "let_statement", func = test_let_statement },
+		{ name = "function_object", func = test_function_object },
+		{ name = "function_application", func = test_function_application },
+		{ name = "enclosing_environment", func = test_enclosing_environment },
+		{ name = "closures", func = test_closures },
+		{ name = "string_literal", func = test_string_literal },
+		{ name = "string_concatenation", func = test_string_concatenation },
+		{ name = "builtin_functions", func = test_builtin_functions },
+		{ name = "array_literals", func = test_array_literals },
+		{ name = "array_index_expressions", func = test_array_index_expressions },
+		{ name = "hash_literals", func = test_hash_literals },
+		{ name = "hash_index_expressions", func = test_hash_index_expressions },
+	}
+}

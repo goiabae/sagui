@@ -10,11 +10,11 @@ local function test_make (t: testing.T)
 	for _, tt in ipairs(tests) do
 		local instruction = code.make(tt[1], table.unpack(tt[2]))
 		if #instruction ~= #tt[3] then
-			t.error("instruction has wrong length. want=%d, got=%d", #tt[3], #instruction)
+			t:error("instruction has wrong length. want=%d, got=%d", #tt[3], #instruction)
 		end
 		for i, b in ipairs(tt[3]) do
 			if instruction[i] ~= b then
-				t.error("wrong byte at pos %d. want=%d, got=%d", i, b, instruction[i])
+				t:error("wrong byte at pos %d. want=%d, got=%d", i, b, instruction[i])
 			end
 		end
 	end
@@ -37,7 +37,7 @@ local function test_instruction_string (t: testing.T)
 		end
 	end
 	if concatted:string() ~= expected then
-		t.error("instructions wrongly formatted.\nwant='%s'\ngot='%s'", expected, concatted:string())
+		t:error("instructions wrongly formatted.\nwant='%s'\ngot='%s'", expected, concatted:string())
 	end
 end
 
@@ -49,21 +49,25 @@ local function test_read_operands (t: testing.T)
 		local instruction = code.Instructions.new(code.make(tt.op, table.unpack(tt.operands)))
 		local def, err = code.lookup(tt.op)
 		if err ~= nil then
-			t.fatal_fail("definition not found: '%s'\n", err)
+			t:fatal_fail("definition not found: '%s'\n", err)
 		end
 		local operands_read, n = code.read_operands(def, instruction:skip_bytes(1))
 		if n ~= tt.bytes_read then
-			t.fatal_fail("n wrong. want=%d, got=%d", tt.bytes_read, n)
+			t:fatal_fail("n wrong. want=%d, got=%d", tt.bytes_read, n)
 		end
 		for i, want in ipairs(tt.operands) do
 			if operands_read[i] ~= want then
-				t.error("operand wrong. want=%d, got=%d", want, operands_read[i])
+				t:error("operand wrong. want=%d, got=%d", want, operands_read[i])
 			end
 		end
 	end
 end
 
-local t = testing.new()
-test_make(t)
-test_instruction_string(t)
-test_read_operands(t)
+return {
+	domain = "code",
+	test_cases = {
+		{ name = "make", func = test_make },
+		{ name = "instruction_string", func = test_instruction_string },
+		{ name = "read_operands", func = test_read_operands },
+	},
+}

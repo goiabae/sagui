@@ -18,8 +18,13 @@ local function test_string (t: testing.T)
 		)
 	})
 	if program:string() ~= "let myVar = anotherVar;" then
-		t.error("program:string() wrong. got='%s'", program:string())
+		t:error("program:string() wrong. got='%s'", program:string())
 	end
 end
 
-test_string(testing.new())
+return {
+	domain = "ast",
+	test_cases = {
+		{ name = "string", func = test_string },
+	}
+}

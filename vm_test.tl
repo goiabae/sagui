@@ -50,12 +50,12 @@ local function test_expected_object (t: testing.T, expected: any, actual: object
 	if type(expected) == "number" then
 		local err = test_integer_object(expected as integer, actual)
 		if err ~= nil then
-			t.error("test_integer_object failed: %s", err.message)
+			t:error("test_integer_object failed: %s", err.message)
 		end
 	elseif type(expected) == "boolean" then
 		local err = test_boolean_object(expected as boolean, actual)
 		if err ~= nil then
-			t.error("test_boolean_object failed: %s", err.message)
+			t:error("test_boolean_object failed: %s", err.message)
 		end
 	end
 end
@@ -72,14 +72,14 @@ local function run_vm_tests (t: testing.T, tests: {VMTestCase})
 		do
 			local err = comp:compile(program)
 			if err ~= nil then
-				t.fatal_fail("copiler error: %s", err)
+				t:fatal_fail("copiler error: %s", err)
 			end
 		end
 		local vm_ = vm.new(comp:bytecode())
 		do
 			local err = vm_:run()
 			if err ~= nil then
-				t.fatal_fail("vm error: %s", err)
+				t:fatal_fail("vm error: %s", err)
 			end
 		end
 		local stack_elem = vm_:last_popped_stack_elem()
@@ -110,7 +110,6 @@ local function test_integer_arithmetic (t: testing.T)
 end
 
 local function test_boolean_expressions (t: testing.T)
-	print("[vm/test_boolean_expressions]")
 	local tests = {
 		{ input = "true", expected = true },
 		{ input = "false", expected = false },
@@ -141,6 +140,10 @@ local function test_boolean_expressions (t: testing.T)
 	run_vm_tests(t, tests)
 end
 
-local t = testing.new()
-test_integer_arithmetic(t)
-test_boolean_expressions(t)
+return {
+	domain = "vm",
+	test_cases = {
+		{ name = "integer_arithmetic", func = test_integer_arithmetic },
+		{ name = "boolean_expressions", func = test_boolean_expressions },
+	}
+}

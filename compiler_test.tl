@@ -117,6 +117,148 @@ local function test_integer_arithmetic (t: testing.T)
 				code.Instructions.new(code.make(code.OpConstant, 0)),
 				code.Instructions.new(code.make(code.OpConstant, 1)),
 				code.Instructions.new(code.make(code.OpAdd)),
+				code.Instructions.new(code.make(code.OpPop)),
+			},
+		},
+		{
+			input = "1; 2",
+			expected_constants = {1, 2},
+			expected_instructions = {
+				code.Instructions.new(code.make(code.OpConstant, 0)),
+				code.Instructions.new(code.make(code.OpPop)),
+				code.Instructions.new(code.make(code.OpConstant, 1)),
+				code.Instructions.new(code.make(code.OpPop)),
+			},
+		},
+		{
+			input = "1 - 2",
+			expected_constants = {1, 2},
+			expected_instructions = {
+				code.Instructions.new(code.make(code.OpConstant, 0)),
+				code.Instructions.new(code.make(code.OpConstant, 1)),
+				code.Instructions.new(code.make(code.OpSub)),
+				code.Instructions.new(code.make(code.OpPop)),
+			},
+		},
+		{
+			input = "1 * 2",
+			expected_constants = {1, 2},
+			expected_instructions = {
+				code.Instructions.new(code.make(code.OpConstant, 0)),
+				code.Instructions.new(code.make(code.OpConstant, 1)),
+				code.Instructions.new(code.make(code.OpMul)),
+				code.Instructions.new(code.make(code.OpPop)),
+			},
+		},
+		{
+			input = "2 / 1",
+			expected_constants = {2, 1},
+			expected_instructions = {
+				code.Instructions.new(code.make(code.OpConstant, 0)),
+				code.Instructions.new(code.make(code.OpConstant, 1)),
+				code.Instructions.new(code.make(code.OpDiv)),
+				code.Instructions.new(code.make(code.OpPop)),
+			},
+		},
+		{
+			input = "-1",
+			expected_constants = {1},
+			expected_instructions = {
+				code.Instructions.new(code.make(code.OpConstant, 0)),
+				code.Instructions.new(code.make(code.OpMinus)),
+				code.Instructions.new(code.make(code.OpPop)),
+			},
+		},
+	}
+	run_compiler_test(t, tests)
+end
+
+local function test_boolean_expressions (t: testing.T)
+	print("[compiler/test_boolean_expressions]")
+	local tests = {
+		{
+			input = "true",
+			expected_constants = {},
+			expected_instructions = {
+				code.Instructions.new(code.make(code.OpTrue)),
+				code.Instructions.new(code.make(code.OpPop)),
+			},
+		},
+		{
+			input = "false",
+			expected_constants = {},
+			expected_instructions = {
+				code.Instructions.new(code.make(code.OpFalse)),
+				code.Instructions.new(code.make(code.OpPop)),
+			},
+		},
+		{
+			input = "1 > 2",
+			expected_constants = {1, 2},
+			expected_instructions = {
+				code.Instructions.new(code.make(code.OpConstant, 0)),
+				code.Instructions.new(code.make(code.OpConstant, 1)),
+				code.Instructions.new(code.make(code.OpGreaterThan)),
+				code.Instructions.new(code.make(code.OpPop)),
+			},
+		},
+		{
+			input = "1 < 2",
+			expected_constants = {2, 1},
+			expected_instructions = {
+				code.Instructions.new(code.make(code.OpConstant, 0)),
+				code.Instructions.new(code.make(code.OpConstant, 1)),
+				code.Instructions.new(code.make(code.OpGreaterThan)),
+				code.Instructions.new(code.make(code.OpPop)),
+			},
+		},
+		{
+			input = "1 == 2",
+			expected_constants = {1, 2},
+			expected_instructions = {
+				code.Instructions.new(code.make(code.OpConstant, 0)),
+				code.Instructions.new(code.make(code.OpConstant, 1)),
+				code.Instructions.new(code.make(code.OpEqual)),
+				code.Instructions.new(code.make(code.OpPop)),
+			},
+		},
+		{
+			input = "1 != 2",
+			expected_constants = {1, 2},
+			expected_instructions = {
+				code.Instructions.new(code.make(code.OpConstant, 0)),
+				code.Instructions.new(code.make(code.OpConstant, 1)),
+				code.Instructions.new(code.make(code.OpNotEqual)),
+				code.Instructions.new(code.make(code.OpPop)),
+			},
+		},
+		{
+			input = "true == false",
+			expected_constants = {},
+			expected_instructions = {
+				code.Instructions.new(code.make(code.OpTrue)),
+				code.Instructions.new(code.make(code.OpFalse)),
+				code.Instructions.new(code.make(code.OpEqual)),
+				code.Instructions.new(code.make(code.OpPop)),
+			},
+		},
+		{
+			input = "true != false",
+			expected_constants = {},
+			expected_instructions = {
+				code.Instructions.new(code.make(code.OpTrue)),
+				code.Instructions.new(code.make(code.OpFalse)),
+				code.Instructions.new(code.make(code.OpNotEqual)),
+				code.Instructions.new(code.make(code.OpPop)),
+			},
+		},
+		{
+			input = "!true",
+			expected_constants = {},
+			expected_instructions = {
+				code.Instructions.new(code.make(code.OpTrue)),
+				code.Instructions.new(code.make(code.OpBang)),
+				code.Instructions.new(code.make(code.OpPop)),
 			},
 		},
 	}
@@ -125,3 +267,4 @@ end
 
 local t = testing.new()
 test_integer_arithmetic(t)
+test_boolean_expressions(t)

@@ -31,11 +31,31 @@ local function test_integer_object (expected: integer, actual: object.Object): E
 	return nil
 end
 
+local function test_boolean_object (expected: boolean, actual: object.Object): Error
+	local function f (v: boolean): string return v and "true" or "false" end
+	if actual == nil then
+		return { message = "object was nil" }
+	end
+	if not (actual is object.Boolean) then
+		return { message = string.format("object is not Boolean. got=%s", type(actual)) }
+	end
+	local result = actual as object.Boolean
+	if result.value ~= expected then
+		return { message = string.format("object has wrong value. got=%s, want=%s", f(result.value), f(expected)) }
+	end
+	return nil
+end
+
 local function test_expected_object (t: testing.T, expected: any, actual: object.Object)
 	if type(expected) == "number" then
 		local err = test_integer_object(expected as integer, actual)
 		if err ~= nil then
 			t.error("test_integer_object failed: %s", err.message)
+		end
+	elseif type(expected) == "boolean" then
+		local err = test_boolean_object(expected as boolean, actual)
+		if err ~= nil then
+			t.error("test_boolean_object failed: %s", err.message)
 		end
 	end
 end
@@ -62,7 +82,7 @@ local function run_vm_tests (t: testing.T, tests: {VMTestCase})
 				t.fatal_fail("vm error: %s", err)
 			end
 		end
-		local stack_elem = vm_:stack_top()
+		local stack_elem = vm_:last_popped_stack_elem()
 		test_expected_object(t, tt.expected, stack_elem)
 	end
 end
@@ -71,10 +91,56 @@ local function test_integer_arithmetic (t: testing.T)
 	local tests = {
 		{ input = "1", expected = 1 },
 		{ input = "2", expected = 2 },
-		{ input = "1 + 2", expected = 3 }, -- FIXME
+		{ input = "1 + 2", expected = 3 },
+		{ input = "1 - 2", expected = -1 },
+		{ input = "1 * 2", expected = 2 },
+		{ input = "4 / 2", expected = 2 },
+		{ input = "50 / 2 * 2 + 10 - 5", expected = 55 },
+		{ input = "5 + 5 + 5 + 5 - 10", expected = 10 },
+		{ input = "2 * 2 * 2 * 2 * 2", expected = 32 },
+		{ input = "5 * 2 + 10", expected = 20 },
+		{ input = "5 + 2 * 10", expected = 25 },
+		{ input = "5 * (2 + 10)", expected = 60 },
+		{ input = "-5", expected = -5 },
+		{ input = "-10", expected = -10 },
+		{ input = "-50 + 100 + -50", expected = 0 },
+		{ input = "(5 + 10 * 2 + 15 / 3) * 2 + -10", expected = 50 },
+	}
+	run_vm_tests(t, tests)
+end
+
+local function test_boolean_expressions (t: testing.T)
+	print("[vm/test_boolean_expressions]")
+	local tests = {
+		{ input = "true", expected = true },
+		{ input = "false", expected = false },
+		{ input = "1 < 2", expected = true },
+		{ input = "1 > 2", expected = false },
+		{ input = "1 < 1", expected = false },
+		{ input = "1 > 1", expected = false },
+		{ input = "1 == 1", expected = true },
+		{ input = "1 != 1", expected = false },
+		{ input = "1 == 2", expected = false },
+		{ input = "1 != 2", expected = true },
+		{ input = "true == true", expected = true },
+		{ input = "false == false", expected = true },
+		{ input = "true == false", expected = false },
+		{ input = "true != false", expected = true },
+		{ input = "false != true", expected = true },
+		{ input = "(1 < 2) == true", expected = true },
+		{ input = "(1 < 2) == false", expected = false },
+		{ input = "(1 > 2) == true", expected = false },
+		{ input = "(1 > 2) == false", expected = true },
+		{ input = "!true", expected = false },
+		{ input = "!false", expected = true },
+		{ input = "!5", expected = false },
+		{ input = "!!true", expected = true },
+		{ input = "!!false", expected = false },
+		{ input = "!!5", expected = true },
 	}
 	run_vm_tests(t, tests)
 end
 
 local t = testing.new()
 test_integer_arithmetic(t)
+test_boolean_expressions(t)

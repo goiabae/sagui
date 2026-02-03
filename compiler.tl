@@ -45,8 +45,23 @@ function compiler.Compiler:compile (node: ast.Node): string
 		if err ~= nil then
 			return err
 		end
+		self:emit(code.OpPop)
 	elseif node is ast.InfixExpression then
 		local infix = node as ast.InfixExpression
+
+		if infix.operator == '<' then
+			local err = self:compile(infix.right)
+			if err ~= nil then
+				return err
+			end
+			err = self:compile(infix.left)
+			if err ~= nil then
+				return err
+			end
+			self:emit(code.OpGreaterThan)
+			return nil
+		end
+
 		local err = self:compile(infix.left)
 		if err ~= nil then
 			return err
@@ -57,12 +72,44 @@ function compiler.Compiler:compile (node: ast.Node): string
 		end
 		if infix.operator == "+" then
 			self:emit(code.OpAdd)
+		elseif infix.operator == '-' then
+			self:emit(code.OpSub)
+		elseif infix.operator == '*' then
+			self:emit(code.OpMul)
+		elseif infix.operator == '/' then
+			self:emit(code.OpDiv)
+		elseif infix.operator == '>' then
+			self:emit(code.OpGreaterThan)
+		elseif infix.operator == '==' then
+			self:emit(code.OpEqual)
+		elseif infix.operator == '!=' then
+			self:emit(code.OpNotEqual)
 		else
 			return string.format("unknown operator %s", infix.operator)
 		end
 	elseif node is ast.IntegerLiteral then
 		local integer = object.Integer.new(node.value)
 		self:emit(code.OpConstant, self:add_constant(integer))
+	elseif node is ast.Boolean then
+		local bool = node as ast.Boolean
+		if bool.value then
+			self:emit(code.OpTrue)
+		else
+			self:emit(code.OpFalse)
+		end
+	elseif node is ast.PrefixExpression then
+		local prefix = node as ast.PrefixExpression
+		local err = self:compile(prefix.right)
+		if err ~= nil then
+			return err
+		end
+		if prefix.operator == "!" then
+			self:emit(code.OpBang)
+		elseif prefix.operator == "-" then
+			self:emit(code.OpMinus)
+		else
+			return string.format("unknown operator %s", prefix.operator)
+		end
 	end
 	return nil
 end

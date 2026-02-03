@@ -5,6 +5,18 @@ local object = require("object")
 
 local stack_size <const> = 2048
 
+local True <const> = object.Boolean.new(true)
+local False <const> = object.Boolean.new(false)
+
+
+local function native_bool_to_boolean_object (input: boolean): object.Boolean
+	if input then
+		return True
+	else
+		return False
+	end
+end
+
 local record vm
 	record VM
 		constants: {object.Object}
@@ -15,8 +27,15 @@ local record vm
 		run: function (self): string
 		push: function (self, object.Object): string
 		pop: function (self): object.Object
+		last_popped_stack_elem: function (self): object.Object
+		execute_binary_operation: function (self, code.Opcode): string
+		execute_binary_integer_operation: function (self, code.Opcode, object.Object, object.Object): string
 	end
 	new: function (compiler.Bytecode): VM
+end
+
+function vm.VM:last_popped_stack_elem (): object.Object
+	return self.stack[self.sp+1]
 end
 
 function vm.VM:stack_top (): object.Object
@@ -24,6 +43,86 @@ function vm.VM:stack_top (): object.Object
 		return nil
 	end
 	return self.stack[self.sp-1+1]
+end
+
+function vm.VM:execute_binary_integer_operation (op: code.Opcode, left: object.Object, right: object.Object): string
+	local left_value = (left as object.Integer).value
+	local right_value = (right as object.Integer).value
+	local result: integer
+	if op == code.OpAdd then
+		result = left_value + right_value
+	elseif op == code.OpSub then
+		result = left_value - right_value
+	elseif op == code.OpMul then
+		result = left_value * right_value
+	elseif op == code.OpDiv then
+		result = math.floor(left_value / right_value)
+	else
+		return string.format("unknown integer operator: %d", op)
+	end
+	return self:push(object.Integer.new(result))
+end
+
+function vm.VM:execute_binary_operation (op: code.Opcode): string
+	local right = self:pop()
+	local left = self:pop()
+	local right_type = right:type()
+	local left_type = left:type()
+	if left_type == object.INTEGER_OBJ and right_type == object.INTEGER_OBJ then
+		return self:execute_binary_integer_operation(op, left, right)
+	else
+		return string.format("unsupported types for binary operation: %s %s", left_type, right_type)
+	end
+end
+
+function vm.VM:execute_integer_comparison (op: code.Opcode, left: object.Object, right: object.Object): string
+	local left_value = (left as object.Integer).value
+	local right_value = (right as object.Integer).value
+	if op == code.OpEqual then
+		return self:push(native_bool_to_boolean_object(right_value == left_value))
+	elseif op == code.OpNotEqual then
+		return self:push(native_bool_to_boolean_object(right_value ~= left_value))
+	elseif op == code.OpGreaterThan then
+		return self:push(native_bool_to_boolean_object(right_value < left_value))
+	else
+		return string.format("unknown operator: %d", op)
+	end
+end
+
+function vm.VM:execute_comparison (op: code.Opcode): string
+	local right = self:pop()
+	local left = self:pop()
+	if left:type() == object.INTEGER_OBJ and right:type() == object.INTEGER_OBJ then
+		return self:execute_integer_comparison(op, left, right)
+	else
+		if op == code.OpEqual then
+			return self:push(native_bool_to_boolean_object(right == left))
+		elseif op == code.OpNotEqual then
+			return self:push(native_bool_to_boolean_object(right ~= left))
+		else
+			return string.format("unknown operator: %s (%s %s)", op, left:type(), right:type())
+		end
+	end
+end
+
+function vm.VM:execute_bang_operator (): string
+	local operand = self:pop()
+	if operand == True then
+		return self:push(False)
+	elseif operand == False then
+		return self:push(True)
+	else
+		return self:push(False)
+	end
+end
+
+function vm.VM:execute_minus_operator (): string
+	local operand = self:pop()
+	if operand:type() ~= object.INTEGER_OBJ then
+		return string.format("unsupported type for negation: %s", operand:type())
+	end
+	local value = (operand as object.Integer).value
+	return self:push(object.Integer.new(-value))
 end
 
 function vm.VM:run(): string
@@ -37,13 +136,38 @@ function vm.VM:run(): string
 			if err ~= nil then
 				return err
 			end
-		elseif op == code.OpAdd then
-			local right = self:pop()
-			local left = self:pop()
-			local left_value = (left as object.Integer).value
-			local right_value = (right as object.Integer).value
-			local result = left_value + right_value
-			self:push(object.Integer.new(result))
+		elseif op == code.OpAdd or op == code.OpSub or op == code.OpMul or op == code.OpDiv then
+			local err = self:execute_binary_operation(op)
+			if err ~= nil then
+				return err
+			end
+		elseif op == code.OpPop then
+			self:pop()
+		elseif op == code.OpTrue then
+			local err = self:push(True)
+			if err ~= nil then
+				return err
+			end
+		elseif op == code.OpFalse then
+			local err = self:push(False)
+			if err ~= nil then
+				return err
+			end
+		elseif op == code.OpEqual or op == code.OpNotEqual or op == code.OpGreaterThan then
+			local err = self:execute_comparison(op)
+			if err ~= nil then
+				return err
+			end
+		elseif op == code.OpBang then
+			local err = self:execute_bang_operator()
+			if err ~= nil then
+				return err
+			end
+		elseif op == code.OpMinus then
+			local err = self:execute_minus_operator()
+			if err ~= nil then
+				return err
+			end
 		end
 		ip = ip + 1
 	end

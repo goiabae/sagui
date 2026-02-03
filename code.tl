@@ -20,6 +20,17 @@ local record code
 
 	OpConstant: Opcode
 	OpAdd: Opcode
+	OpPop: Opcode
+	OpSub: Opcode
+	OpMul: Opcode
+	OpDiv: Opcode
+	OpTrue: Opcode
+	OpFalse: Opcode
+	OpEqual: Opcode
+	OpNotEqual: Opcode
+	OpGreaterThan: Opcode
+	OpMinus: Opcode
+	OpBang: Opcode
 
 	definitions: { Opcode:Definition }
 	lookup: function (byte): (Definition, string)
@@ -30,9 +41,31 @@ end
 
 code.OpConstant = 0
 code.OpAdd = 1
+code.OpPop = 2
+code.OpSub = 3
+code.OpMul = 4
+code.OpDiv = 5
+code.OpTrue = 6
+code.OpFalse = 7
+code.OpEqual = 8
+code.OpNotEqual = 9
+code.OpGreaterThan = 10
+code.OpMinus = 11
+code.OpBang = 12
 code.definitions = {
 	[code.OpConstant] = { name = "OpConstant", operand_widths = {2} },
 	[code.OpAdd] = { name = "OpAdd", operand_widths = {} },
+	[code.OpPop] = { name = "OpPop", operand_widths = {} },
+	[code.OpSub] = { name = "OpSub", operand_widths = {} },
+	[code.OpMul] = { name = "OpMul", operand_widths = {} },
+	[code.OpDiv] = { name = "OpDiv", operand_widths = {} },
+	[code.OpTrue] = { name = "OpTrue", operand_widths = {} },
+	[code.OpFalse] = { name = "OpFalse", operand_widths = {} },
+	[code.OpEqual] = { name = "OpEqual", operand_widths = {} },
+	[code.OpNotEqual] = { name = "OpNotequal", operand_widths = {} },
+	[code.OpGreaterThan] = { name = "OpGreaterThan", operand_widths = {} },
+	[code.OpMinus] = { name = "OpMinus", operand_widths = {} },
+	[code.OpBang] = { name = "OpBang", operand_widths = {} },
 }
 
 function code.Instructions:append_bytes (bytes: {code.byte})

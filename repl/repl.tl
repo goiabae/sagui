@@ -57,8 +57,8 @@ local function start (input: FILE, output: FILE)
 				if err ~= nil then
 					output:write(string.format("Woops! Executing bytecode failed:\n %s\n", err))
 				else
-					local stack_top = machine:stack_top()
-					output:write(stack_top:inspect() .. "\n")
+					local last_popped = machine:last_popped_stack_elem()
+					output:write(last_popped:inspect() .. "\n")
 				end
 			end
 			-- local evaluated = evaluator.eval(program, env)

@@ -8,9 +8,15 @@ local record compiler
 		instructions: code.Instructions
 		constants: {object.Object}
 	end
+	record EmittedInstruction
+		opcode: code.Opcode
+		position: integer
+	end
 	record Compiler
 		instructions: code.Instructions
 		constants: {object.Object}
+		last_instruction: EmittedInstruction
+		previous_instruction: EmittedInstruction
 		compile: function (self, ast.Node): string
 		bytecode: function (self): Bytecode
 		add_constant: function (self, object.Object): integer
@@ -20,16 +26,46 @@ local record compiler
 	new: function (): Compiler
 end
 
+function compiler.Compiler:replace_instruction (pos: integer, new_instruction: {code.byte})
+	for i = 0, #new_instruction - 1 do
+		self.instructions.bytes[pos+i] = new_instruction[i+1]
+	end
+end
+
+function compiler.Compiler:change_operand(op_pos: integer, operand: integer)
+	local op = self.instructions.bytes[op_pos] as code.Opcode
+	local new_instruction = code.make(op, operand)
+	self:replace_instruction(op_pos, new_instruction)
+end
+
 function compiler.Compiler:add_instruction (ins: {code.byte}): integer
 	local pos_new_instruction = #self.instructions.bytes + 1
 	self.instructions:append_bytes(ins)
 	return pos_new_instruction
 end
 
+function compiler.Compiler:set_last_instruction (op: code.Opcode, pos: integer)
+	local previous = self.last_instruction
+	local last: compiler.EmittedInstruction = { opcode = op, position = pos }
+	self.previous_instruction = previous
+	self.last_instruction = last
+end
+
 function compiler.Compiler:emit (op: code.Opcode, ...: integer): integer
 	local ins = code.make(op, ...)
 	local pos = self:add_instruction(ins)
+	self:set_last_instruction(op, pos)
 	return pos
+end
+
+function compiler.Compiler:last_instruction_is_pop (): boolean
+	return self.last_instruction.opcode == code.OpPop
+end
+
+function compiler.Compiler:remove_last_pop ()
+	self.instructions = self.instructions:drop_bytes(1)
+	assert(self.instructions ~= nil)
+	self.last_instruction = self.previous_instruction
 end
 
 function compiler.Compiler:compile (node: ast.Node): string
@@ -110,6 +146,45 @@ function compiler.Compiler:compile (node: ast.Node): string
 		else
 			return string.format("unknown operator %s", prefix.operator)
 		end
+	elseif node is ast.IfExpression then
+		local if_exp = node as ast.IfExpression
+		local err: string
+		err = self:compile(if_exp.condition)
+		if err ~= nil then
+			return err
+		end
+		local jump_not_truthy_pos = self:emit(code.OpJumpNotTruthy, 9999)
+		err = self:compile(if_exp.consequence)
+		if err ~= nil then
+			return err
+		end
+		if self:last_instruction_is_pop() then
+			self:remove_last_pop()
+		end
+		local jump_pos = self:emit(code.OpJump, 9999)
+		local after_consequence_pos = #self.instructions.bytes
+		self:change_operand(jump_not_truthy_pos, after_consequence_pos)
+		if if_exp.alternative == nil then
+			self:emit(code.OpNull)
+		else
+			local err = self:compile(if_exp.alternative)
+			if err ~= nil then
+				return err
+			end
+			if self:last_instruction_is_pop() then
+				self:remove_last_pop()
+			end
+		end
+		local after_alternative_pos = #self.instructions.bytes
+		self:change_operand(jump_pos, after_alternative_pos)
+	elseif node is ast.BlockStatement then
+		local blk = node as ast.BlockStatement
+		for _, s in ipairs(blk.statements) do
+			local err = self:compile(s)
+			if err ~= nil then
+				return err
+			end
+		end
 	end
 	return nil
 end
@@ -131,6 +206,8 @@ function compiler.new (): compiler.Compiler
 	return setmetatable({
 		instructions = code.Instructions.new(),
 		constants = {},
+		last_instruction = {},
+		previous_instruction = {},
 	}, { __index = compiler.Compiler })
 end
 

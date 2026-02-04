@@ -14,6 +14,7 @@ local record code
 		byte_string: function (self): string
 		new: function (?{byte}): Instructions
 		skip_bytes: function (self, integer): Instructions
+		drop_bytes: function (self, integer): Instructions
 		fmt_instruction: function (self, Definition, {integer}): string
 		append_bytes: function (self, {byte})
 	end
@@ -31,6 +32,9 @@ local record code
 	OpGreaterThan: Opcode
 	OpMinus: Opcode
 	OpBang: Opcode
+	OpJumpNotTruthy: Opcode
+	OpJump: Opcode
+	OpNull: Opcode
 
 	definitions: { Opcode:Definition }
 	lookup: function (byte): (Definition, string)
@@ -52,6 +56,9 @@ code.OpNotEqual = 9
 code.OpGreaterThan = 10
 code.OpMinus = 11
 code.OpBang = 12
+code.OpJumpNotTruthy = 13
+code.OpJump = 14
+code.OpNull = 15
 code.definitions = {
 	[code.OpConstant] = { name = "OpConstant", operand_widths = {2} },
 	[code.OpAdd] = { name = "OpAdd", operand_widths = {} },
@@ -66,6 +73,9 @@ code.definitions = {
 	[code.OpGreaterThan] = { name = "OpGreaterThan", operand_widths = {} },
 	[code.OpMinus] = { name = "OpMinus", operand_widths = {} },
 	[code.OpBang] = { name = "OpBang", operand_widths = {} },
+	[code.OpJumpNotTruthy] = { name = "OpJumpNotTruthy", operand_widths = {2} },
+	[code.OpJump] = { name = "OpJump", operand_widths = {2} },
+	[code.OpNull] = { name = "OpNull", operand_widths = {} },
 }
 
 function code.Instructions:append_bytes (bytes: {code.byte})
@@ -112,6 +122,14 @@ end
 function code.Instructions:skip_bytes (n: integer): code.Instructions
 	local new_bytes = {}
 	for i = 1+n, #self.bytes do
+		table.insert(new_bytes, self.bytes[i])
+	end
+	return code.Instructions.new(new_bytes)
+end
+
+function code.Instructions:drop_bytes (n: integer): code.Instructions
+	local new_bytes = {}
+	for i = 1, #self.bytes - n do
 		table.insert(new_bytes, self.bytes[i])
 	end
 	return code.Instructions.new(new_bytes)

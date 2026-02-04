@@ -29,8 +29,12 @@ local function run_tests (tests: {testing.Test})
 	for _, test in ipairs(tests) do
 		t:set_domain(test.domain)
 		for _, case in ipairs(test.test_cases) do
+			-- case.func(t)
+			-- -- FIXME: can't get the error object because teal refuses to typecheck the pcall second return value
 			local status = pcall(function () case.func(t) end)
-			if not status then break end
+			if not status then
+				break
+			end
 		end
 		local error_count = #t.errors[test.domain]["ERROR"]
 		local fail_count = #t.errors[test.domain]["FAIL"]

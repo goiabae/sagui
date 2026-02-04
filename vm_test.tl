@@ -57,6 +57,10 @@ local function test_expected_object (t: testing.T, expected: any, actual: object
 		if err ~= nil then
 			t:error("test_boolean_object failed: %s", err.message)
 		end
+	elseif expected is object.Null then
+		if actual ~= vm.Null then
+			t:error("object is not Null: %s", type(actual))
+		end
 	end
 end
 
@@ -136,6 +140,23 @@ local function test_boolean_expressions (t: testing.T)
 		{ input = "!!true", expected = true },
 		{ input = "!!false", expected = false },
 		{ input = "!!5", expected = true },
+		{ input = "!(if (false) { 5; })", expected = true },
+	}
+	run_vm_tests(t, tests)
+end
+
+local function test_conditionals (t: testing.T)
+	local tests: {VMTestCase} = {
+		{ input = "if (true) { 10 }", expected = 10 },
+		{ input = "if (true) { 10 } else { 20 }", expected = 10 },
+		{ input = "if (false) { 10 } else { 20 } ", expected = 20 },
+		{ input = "if (1) { 10 }", expected = 10 },
+		{ input = "if (1 < 2) { 10 }", expected = 10 },
+		{ input = "if (1 < 2) { 10 } else { 20 }", expected = 10 },
+		{ input = "if (1 > 2) { 10 } else { 20 }", expected = 20 },
+		{ input = "if (1 > 2) { 10 }", expected = vm.Null },
+		{ input = "if (false) { 10 }", expected = vm.Null },
+		{ input = "if ((if (false) { 10 })) { 10 } else { 20 }", expected = 20 },
 	}
 	run_vm_tests(t, tests)
 end
@@ -145,5 +166,6 @@ return {
 	test_cases = {
 		{ name = "integer_arithmetic", func = test_integer_arithmetic },
 		{ name = "boolean_expressions", func = test_boolean_expressions },
+		{ name = "conditionals", func = test_conditionals },
 	}
 }

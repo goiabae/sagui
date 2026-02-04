@@ -7,7 +7,7 @@ local stack_size <const> = 2048
 
 local True <const> = object.Boolean.new(true)
 local False <const> = object.Boolean.new(false)
-
+local Null <const> = object.Null.new()
 
 local function native_bool_to_boolean_object (input: boolean): object.Boolean
 	if input then
@@ -32,7 +32,10 @@ local record vm
 		execute_binary_integer_operation: function (self, code.Opcode, object.Object, object.Object): string
 	end
 	new: function (compiler.Bytecode): VM
+	Null: object.Null
 end
+
+vm.Null = Null
 
 function vm.VM:last_popped_stack_elem (): object.Object
 	return self.stack[self.sp+1]
@@ -111,6 +114,8 @@ function vm.VM:execute_bang_operator (): string
 		return self:push(False)
 	elseif operand == False then
 		return self:push(True)
+	elseif operand == Null then
+		return self:push(True)
 	else
 		return self:push(False)
 	end
@@ -123,6 +128,16 @@ function vm.VM:execute_minus_operator (): string
 	end
 	local value = (operand as object.Integer).value
 	return self:push(object.Integer.new(-value))
+end
+
+local function is_truthy (obj: object.Object): boolean
+	if obj is object.Boolean then
+		return (obj as object.Boolean).value
+	elseif obj is object.Null then
+		return false
+	else
+		return true
+	end
 end
 
 function vm.VM:run(): string
@@ -165,6 +180,21 @@ function vm.VM:run(): string
 			end
 		elseif op == code.OpMinus then
 			local err = self:execute_minus_operator()
+			if err ~= nil then
+				return err
+			end
+		elseif op == code.OpJump then
+			local pos = code.read_u16(self.instructions.bytes, ip+1+1)
+			ip = pos - 1
+		elseif op == code.OpJumpNotTruthy then
+			local pos = code.read_u16(self.instructions.bytes, ip+1+1)
+			ip = ip + 2
+			local condition = self:pop()
+			if not is_truthy(condition) then
+				ip = pos - 1
+			end
+		elseif op == code.OpNull then
+			local err = self:push(Null)
 			if err ~= nil then
 				return err
 			end

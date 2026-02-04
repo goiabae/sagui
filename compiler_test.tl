@@ -39,7 +39,7 @@ local function test_instructions (expected: {code.Instructions}, actual: code.In
 	end
 	for i, ins in ipairs(concatted.bytes) do
 		if actual.bytes[i] ~= ins then
-			return string.format("wrong instruction at %d.\nwant='%s'(%d)\ngot='%s'(%d)", i, concatted:byte_string(), ins, actual:byte_string(), actual.bytes[i])
+			return string.format("wrong instruction at %d.\nwant='%s'(%d)\ngot='%s'(%d)", i, concatted:string(), ins, actual:string(), actual.bytes[i])
 		end
 	end
 	return nil
@@ -79,6 +79,7 @@ local function run_compiler_test (t: testing.T, tests: {CompilerTestCase})
 		do
 			local err = c:compile(program)
 			if err ~= nil then
+				print(string.format("compiler error: %s", err))
 				t:fatal_fail("compiler error: %s", err)
 			end
 		end
@@ -264,10 +265,61 @@ local function test_boolean_expressions (t: testing.T)
 	run_compiler_test(t, tests)
 end
 
+local function test_conditionals (t: testing.T)
+	local tests = {
+		{
+			input = "if (true) { 10 }; 3333;",
+			expected_constants = {10, 3333},
+			expected_instructions = {
+				-- 0000
+				code.Instructions.new(code.make(code.OpTrue)),
+				-- 0001
+				code.Instructions.new(code.make(code.OpJumpNotTruthy, 10)),
+				-- 0004
+				code.Instructions.new(code.make(code.OpConstant, 0)),
+				-- 0007
+				code.Instructions.new(code.make(code.OpJump, 11)),
+				-- 0010
+				code.Instructions.new(code.make(code.OpNull)),
+				-- 0011
+				code.Instructions.new(code.make(code.OpPop)),
+				-- 0012
+				code.Instructions.new(code.make(code.OpConstant, 1)),
+				-- 0015
+				code.Instructions.new(code.make(code.OpPop)),
+			},
+		},
+		{
+			input = "if (true) { 10 } else { 20 }; 3333;",
+			expected_constants = {10, 20, 3333},
+			expected_instructions = {
+				-- 0000
+				code.Instructions.new(code.make(code.OpTrue)),
+				-- 0001
+				code.Instructions.new(code.make(code.OpJumpNotTruthy, 10)),
+				-- 0004
+				code.Instructions.new(code.make(code.OpConstant, 0)),
+				-- 0007
+				code.Instructions.new(code.make(code.OpJump, 13)),
+				-- 0010
+				code.Instructions.new(code.make(code.OpConstant, 1)),
+				-- 0013
+				code.Instructions.new(code.make(code.OpPop)),
+				-- 0014
+				code.Instructions.new(code.make(code.OpConstant, 2)),
+				-- 0017
+				code.Instructions.new(code.make(code.OpPop)),
+			},
+		},
+	}
+	run_compiler_test(t, tests)
+end
+
 return {
 	domain = "compiler",
 	test_cases = {
 		{ name = "integer_arithmetic", func = test_integer_arithmetic },
 		{ name = "boolean_expressions", func = test_boolean_expressions },
+		{ name = "conditionals", func = test_conditionals },
 	}
 }

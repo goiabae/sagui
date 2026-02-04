@@ -161,11 +161,21 @@ local function test_conditionals (t: testing.T)
 	run_vm_tests(t, tests)
 end
 
+local function test_global_let_statement (t: testing.T)
+	local tests: {VMTestCase} = {
+		{ input = "let one = 1; one", expected = 1 },
+		{ input = "let one = 1; let two = 2; one + two", expected = 3 },
+		{ input = "let one = 1; let two = one + one; one + two", expected = 3 },
+	}
+	run_vm_tests(t, tests)
+end
+
 return {
 	domain = "vm",
 	test_cases = {
 		{ name = "integer_arithmetic", func = test_integer_arithmetic },
 		{ name = "boolean_expressions", func = test_boolean_expressions },
 		{ name = "conditionals", func = test_conditionals },
+		{ name = "global_let_statement", func = test_global_let_statement },
 	}
 }

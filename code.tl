@@ -35,6 +35,8 @@ local record code
 	OpJumpNotTruthy: Opcode
 	OpJump: Opcode
 	OpNull: Opcode
+	OpGetGlobal: Opcode
+	OpSetGlobal: Opcode
 
 	definitions: { Opcode:Definition }
 	lookup: function (byte): (Definition, string)
@@ -59,6 +61,8 @@ code.OpBang = 12
 code.OpJumpNotTruthy = 13
 code.OpJump = 14
 code.OpNull = 15
+code.OpGetGlobal = 16
+code.OpSetGlobal = 17
 code.definitions = {
 	[code.OpConstant] = { name = "OpConstant", operand_widths = {2} },
 	[code.OpAdd] = { name = "OpAdd", operand_widths = {} },
@@ -76,6 +80,8 @@ code.definitions = {
 	[code.OpJumpNotTruthy] = { name = "OpJumpNotTruthy", operand_widths = {2} },
 	[code.OpJump] = { name = "OpJump", operand_widths = {2} },
 	[code.OpNull] = { name = "OpNull", operand_widths = {} },
+	[code.OpGetGlobal] = { name = "OpGetGlobal", operand_widths = {2} },
+	[code.OpSetGlobal] = { name = "OpSetGlobal", operand_widths = {2} },
 }
 
 function code.Instructions:append_bytes (bytes: {code.byte})

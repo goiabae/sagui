@@ -2,6 +2,7 @@
 local code = require("code")
 local object = require("object")
 local ast = require("ast.ast")
+local symbol_table = require("symbol_table")
 
 local record compiler
 	record Bytecode
@@ -22,8 +23,10 @@ local record compiler
 		add_constant: function (self, object.Object): integer
 		emit: function (self, code.Opcode, ...: integer): integer
 		add_instruction: function (self, {code.byte}): integer
+		symbol_table: symbol_table.SymbolTable
 	end
 	new: function (): Compiler
+	new_with_state: function (symbol_table.SymbolTable, {object.Object}): Compiler
 end
 
 function compiler.Compiler:replace_instruction (pos: integer, new_instruction: {code.byte})
@@ -167,7 +170,7 @@ function compiler.Compiler:compile (node: ast.Node): string
 		if if_exp.alternative == nil then
 			self:emit(code.OpNull)
 		else
-			local err = self:compile(if_exp.alternative)
+			err = self:compile(if_exp.alternative)
 			if err ~= nil then
 				return err
 			end
@@ -185,6 +188,21 @@ function compiler.Compiler:compile (node: ast.Node): string
 				return err
 			end
 		end
+	elseif node is ast.LetStatement then
+		local let_stmt = node as ast.LetStatement
+		local err = self:compile(let_stmt.value)
+		if err ~= nil then
+			return err
+		end
+		local symbol = self.symbol_table:define(let_stmt.name.value)
+		self:emit(code.OpSetGlobal, symbol.index)
+	elseif node is ast.Identifier then
+		local ident = node as ast.Identifier
+		local symbol, ok = self.symbol_table:resolve(ident.value)
+		if not ok then
+			return string.format("undefined variable %s", ident.value)
+		end
+		self:emit(code.OpGetGlobal, symbol.index)
 	end
 	return nil
 end
@@ -208,6 +226,17 @@ function compiler.new (): compiler.Compiler
 		constants = {},
 		last_instruction = {},
 		previous_instruction = {},
+		symbol_table = symbol_table.SymbolTable.new(),
+	}, { __index = compiler.Compiler })
+end
+
+function compiler.new_with_state (s: symbol_table.SymbolTable, constants: {object.Object}): compiler.Compiler
+	return setmetatable({
+		instructions = code.Instructions.new(),
+		constants = constants,
+		last_instruction = {},
+		previous_instruction = {},
+		symbol_table = s,
 	}, { __index = compiler.Compiler })
 end
 

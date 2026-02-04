@@ -5,6 +5,8 @@ local evaluator = require("evaluator")
 local environment = require("environment")
 local compiler = require("compiler")
 local vm = require("vm")
+local symbol_table = require("symbol_table")
+local object = require("object")
 
 local PROMPT <const> = ">> "
 
@@ -33,6 +35,9 @@ end
 
 local function start (input: FILE, output: FILE)
 	local env = environment.new_environment()
+	local constants: {object.Object} = {}
+	local globals: {object.Object} = {}
+	local symtab = symbol_table.SymbolTable.new()
 	while true do
 		output:write(PROMPT)
 		local line = input:read()
@@ -47,12 +52,13 @@ local function start (input: FILE, output: FILE)
 			print_parser_errors(output, p:get_errors())
 		else
 			output:write("PARSED: " .. program:string() .. "\n")
-			local comp = compiler.new()
+			local comp = compiler.new_with_state(symtab, constants)
 			local err = comp:compile(program)
 			if err ~= nil then
 				output:write(string.format("Woops! Compilation failed:\n %s\n", err))
 			else
-				local machine = vm.new(comp:bytecode())
+				constants = comp:bytecode().constants
+				local machine = vm.new_with_globals_store(comp:bytecode(), globals)
 				local err = machine:run()
 				if err ~= nil then
 					output:write(string.format("Woops! Executing bytecode failed:\n %s\n", err))

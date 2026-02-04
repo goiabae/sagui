@@ -9,6 +9,7 @@ local evaluator_test = require("evaluator_test")
 local code_test = require("code_test")
 local compiler_test = require("compiler_test")
 local vm_test = require("vm_test")
+local symbol_table_test = require("symbol_table_test")
 
 -- local testing_test = {
 -- 	domain = "testing",
@@ -62,4 +63,5 @@ run_tests({
 	code_test,
 	compiler_test,
 	vm_test,
+	symbol_table_test,
 })

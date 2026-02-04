@@ -4,6 +4,7 @@ local compiler = require("compiler")
 local object = require("object")
 
 local stack_size <const> = 2048
+local globals_size <const> = 65536
 
 local True <const> = object.Boolean.new(true)
 local False <const> = object.Boolean.new(false)
@@ -22,6 +23,7 @@ local record vm
 		constants: {object.Object}
 		instructions: code.Instructions
 		stack: {object.Object}
+		globals: {object.Object}
 		sp: integer
 		stack_top: function (self): object.Object
 		run: function (self): string
@@ -32,6 +34,7 @@ local record vm
 		execute_binary_integer_operation: function (self, code.Opcode, object.Object, object.Object): string
 	end
 	new: function (compiler.Bytecode): VM
+	new_with_globals_store: function (compiler.Bytecode, {object.Object}): VM
 	Null: object.Null
 end
 
@@ -198,6 +201,17 @@ function vm.VM:run(): string
 			if err ~= nil then
 				return err
 			end
+		elseif op == code.OpGetGlobal then
+			local global_index = code.read_u16(self.instructions.bytes, ip+1+1)
+			ip = ip + 2
+			local err = self:push(self.globals[global_index])
+			if err ~= nil then
+				return err
+			end
+		elseif op == code.OpSetGlobal then
+			local global_index = code.read_u16(self.instructions.bytes, ip+1+1)
+			ip = ip + 2
+			self.globals[global_index] = self:pop()
 		end
 		ip = ip + 1
 	end
@@ -225,6 +239,17 @@ function vm.new (bytecode: compiler.Bytecode): vm.VM
 		constants = bytecode.constants,
 		stack = {},
 		sp = 0,
+		globals = {},
+	}, { __index = vm.VM })
+end
+
+function vm.new_with_globals_store (bytecode: compiler.Bytecode, s: {object.Object}): vm.VM
+	return setmetatable({
+		instructions = bytecode.instructions,
+		constants = bytecode.constants,
+		stack = {},
+		sp = 0,
+		globals = s,
 	}, { __index = vm.VM })
 end
 

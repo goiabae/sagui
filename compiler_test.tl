@@ -35,7 +35,7 @@ local function test_instructions (expected: {code.Instructions}, actual: code.In
 		error("actual.bytes was nil")
 	end
 	if #actual.bytes ~= #concatted.bytes then
-		return string.format("wrong instructions length.\nwant=%d\ngot=%d", #concatted.bytes, #actual.bytes)
+		return string.format("wrong instructions length.\nwant=(%d)\n%s\ngot=(%d)\n%s", #concatted.bytes, concatted:string(), #actual.bytes, actual:string())
 	end
 	for i, ins in ipairs(concatted.bytes) do
 		if actual.bytes[i] ~= ins then
@@ -315,11 +315,50 @@ local function test_conditionals (t: testing.T)
 	run_compiler_test(t, tests)
 end
 
+local function test_global_let_statement (t: testing.T)
+	local tests = {
+		{
+			input = "let one = 1; let two = 2;",
+			expected_constants = {1, 2},
+			expected_instructions = {
+				code.Instructions.new(code.make(code.OpConstant, 0)),
+				code.Instructions.new(code.make(code.OpSetGlobal, 0)),
+				code.Instructions.new(code.make(code.OpConstant, 1)),
+				code.Instructions.new(code.make(code.OpSetGlobal, 1)),
+			},
+		},
+		{
+			input = "let one = 1; one;",
+			expected_constants = {1},
+			expected_instructions = {
+				code.Instructions.new(code.make(code.OpConstant, 0)),
+				code.Instructions.new(code.make(code.OpSetGlobal, 0)),
+				code.Instructions.new(code.make(code.OpGetGlobal, 0)),
+				code.Instructions.new(code.make(code.OpPop)),
+			},
+		},
+		{
+			input = "let one = 1; let two = one; two;",
+			expected_constants = {1},
+			expected_instructions = {
+				code.Instructions.new(code.make(code.OpConstant, 0)),
+				code.Instructions.new(code.make(code.OpSetGlobal, 0)),
+				code.Instructions.new(code.make(code.OpGetGlobal, 0)),
+				code.Instructions.new(code.make(code.OpSetGlobal, 1)),
+				code.Instructions.new(code.make(code.OpGetGlobal, 1)),
+				code.Instructions.new(code.make(code.OpPop)),
+			},
+		},
+	}
+	run_compiler_test(t, tests)
+end
+
 return {
 	domain = "compiler",
 	test_cases = {
 		{ name = "integer_arithmetic", func = test_integer_arithmetic },
 		{ name = "boolean_expressions", func = test_boolean_expressions },
 		{ name = "conditionals", func = test_conditionals },
+		{ name = "global_let_statement", func = test_global_let_statement },
 	}
 }

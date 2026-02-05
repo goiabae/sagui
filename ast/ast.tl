@@ -439,15 +439,21 @@ local record HashLiteral is Expression
 	kind: NodeType
 	token: token.Token
 	pairs: { Expression:Expression }
+	pair_count: integer
 end
 
 function HashLiteral:expression_node() end
 function HashLiteral:token_literal(): string return self.token.literal end
 function HashLiteral.new(tk: token.Token, pairs_: { Expression:Expression }): HashLiteral
+	local pair_count = 0
+	for _, _ in pairs(pairs_) do
+		pair_count = pair_count + 1
+	end
 	return setmetatable({
 		kind = "hash_literal",
 		token = tk,
 		pairs = pairs_,
+		pair_count = pair_count,
 	}, { __index = HashLiteral })
 end
 

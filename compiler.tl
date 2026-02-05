@@ -215,6 +215,37 @@ function compiler.Compiler:compile (node: ast.Node): string
 			end
 		end
 		self:emit(code.OpArray, #arr_lit.elements)
+	elseif node is ast.HashLiteral then
+		local hash = node as ast.HashLiteral
+		local keys: {ast.Expression} = {}
+		for k, _ in pairs(hash.pairs) do
+			table.insert(keys, k)
+		end
+		table.sort(keys, function (ki: ast.Expression, kj: ast.Expression): boolean
+			return ki:string() < kj:string()
+		end)
+		for _, k in ipairs(keys) do
+			local err = self:compile(k)
+			if err ~= nil then
+				return err
+			end
+			err = self:compile(hash.pairs[k])
+			if err ~= nil then
+				return err
+			end
+		end
+		self:emit(code.OpHash, hash.pair_count * 2)
+	elseif node is ast.IndexExpression then
+		local index_exp = node as ast.IndexExpression
+		local err = self:compile(index_exp.left)
+		if err ~= nil then
+			return err
+		end
+		err = self:compile(index_exp.index)
+		if err ~= nil then
+			return err
+		end
+		self:emit(code.OpIndex)
 	end
 	return nil
 end

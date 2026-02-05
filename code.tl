@@ -38,6 +38,8 @@ local record code
 	OpGetGlobal: Opcode
 	OpSetGlobal: Opcode
 	OpArray: Opcode
+	OpHash: Opcode
+	OpIndex: Opcode
 
 	definitions: { Opcode:Definition }
 	lookup: function (byte): (Definition, string)
@@ -65,6 +67,8 @@ code.OpNull = 15
 code.OpGetGlobal = 16
 code.OpSetGlobal = 17
 code.OpArray = 18
+code.OpHash = 19
+code.OpIndex = 20
 code.definitions = {
 	[code.OpConstant] = { name = "OpConstant", operand_widths = {2} },
 	[code.OpAdd] = { name = "OpAdd", operand_widths = {} },
@@ -85,6 +89,8 @@ code.definitions = {
 	[code.OpGetGlobal] = { name = "OpGetGlobal", operand_widths = {2} },
 	[code.OpSetGlobal] = { name = "OpSetGlobal", operand_widths = {2} },
 	[code.OpArray] = { name = "OpArray", operand_widths = {2} },
+	[code.OpHash] = { name = "OpHash", operand_widths = {2} },
+	[code.OpIndex] = { name = "OpIndex", operand_widths = {} },
 }
 
 function code.Instructions:append_bytes (bytes: {code.byte})

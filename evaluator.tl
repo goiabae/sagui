@@ -467,6 +467,7 @@ end
 
 function evaluator.eval_hash_literal (node: ast.HashLiteral, env: environment.Environment): object.Object
 	local pairs_ = {}
+	local pair_count = 0
 	for kn, vn in pairs(node.pairs) do
 		local key = evaluator.eval(kn, env)
 		if is_error(key) then
@@ -482,8 +483,9 @@ function evaluator.eval_hash_literal (node: ast.HashLiteral, env: environment.En
 		end
 		local hashed = hash_key:hash_key()
 		pairs_[hashed.value] = { key = key, value = value }
+		pair_count = pair_count + 1
 	end
-	return object.Hash.new(pairs_)
+	return object.Hash.new(pairs_, pair_count)
 end
 
 return evaluator

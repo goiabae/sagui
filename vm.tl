@@ -162,6 +162,58 @@ function vm.VM:build_array (start_index: integer, end_index: integer): object.Ob
 	return object.Array.new(elements)
 end
 
+function vm.VM:build_hash (start_index: integer, end_index: integer): (object.Object, string)
+	local hashed_pairs = {}
+	local pair_count = 0
+	for i = start_index, end_index-1, 2 do
+		local key = self.stack[i+1]
+		local value = self.stack[i+1+1]
+		local pair_ = { key = key, value = value }
+		if (key as object.Hashable).hash_key == nil then
+			return nil, string.format("unusable as hash key: %s", key:type())
+		end
+		local hash_key = key as object.Hashable
+		hashed_pairs[hash_key:hash_key().value] = pair_
+		pair_count = pair_count + 1
+	end
+	return object.Hash.new(hashed_pairs, pair_count), nil
+end
+
+function vm.VM:execute_array_index (left: object.Array, index: object.Integer): string
+	local array_object = left
+	local i = index.value
+	local max = #array_object.elements - 1
+	if i < 0 or i > max then
+		return self:push(Null)
+	else
+		return self:push(array_object.elements[i+1])
+	end
+end
+
+function vm.VM:execute_hash_index (left: object.Hash, index: object.Object): string
+	local hash_object = left
+	if (index as object.Hashable).hash_key == nil then
+		return string.format("unusable as hash key: %s", index:type())
+	end
+	local key = index as object.Hashable
+	local pair_ = hash_object.pairs[key:hash_key().value]
+	if pair_ == nil then
+		return self:push(Null)
+	else
+		return self:push(pair_.value)
+	end
+end
+
+function vm.VM:execute_index_expression (left: object.Object, index: object.Object): string
+	if left:type() == object.ARRAY_OBJ and index:type() == object.INTEGER_OBJ then
+		return self:execute_array_index(left as object.Array, index as object.Integer)
+	elseif left:type() == object.HASH_OBJ then
+		return self:execute_hash_index(left as object.Hash, index)
+	else
+		return string.format("index operator not supported: %s", left:type())
+	end
+end
+
 function vm.VM:run(): string
 	local ip = 0
 	while ip < #self.instructions.bytes do
@@ -240,6 +292,25 @@ function vm.VM:run(): string
 			local array = self:build_array(self.sp - num_elements, self.sp)
 			self.sp = self.sp - num_elements
 			local err = self:push(array)
+			if err ~= nil then
+				return err
+			end
+		elseif op == code.OpHash then
+			local num_elements = code.read_u16(self.instructions.bytes, ip+1+1)
+			ip = ip + 2
+			local hash, err = self:build_hash(self.sp - num_elements, self.sp)
+			if err ~= nil then
+				return err
+			end
+			self.sp = self.sp - num_elements
+			err = self:push(hash)
+			if err ~= nil then
+				return err
+			end
+		elseif op == code.OpIndex then
+			local index = self:pop()
+			local left = self:pop()
+			local err = self:execute_index_expression(left, index)
 			if err ~= nil then
 				return err
 			end

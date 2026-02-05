@@ -228,6 +228,7 @@ local record Hash is Object
 	where self.kind == "HASH"
 	kind: string
 	pairs: { integer:HashPair }
+	pair_count: integer
 end
 
 function Hash:type (): ObjectType return HASH_OBJ end
@@ -238,10 +239,11 @@ function Hash:inspect (): string
 	end
 	return "{" .. table.concat(pairs_, ", ") .. "}"
 end
-function Hash.new (pairs_: { integer:HashPair }): Hash
+function Hash.new (pairs_: { integer:HashPair }, pair_count: integer): Hash
 	return setmetatable({
 		kind = HASH_OBJ,
 		pairs = pairs_,
+		pair_count = pair_count,
 	}, { __index = Hash })
 end
 

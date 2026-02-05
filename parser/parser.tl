@@ -403,6 +403,7 @@ function Parser:parse_hash_literal (): ast.Expression
 		self:next_token()
 		local value = self:parse_expression(LOWEST)
 		hash.pairs[key] = value
+		hash.pair_count = hash.pair_count + 1
 		if not self:peek_token_is(token.RBRACE) and not self:expect_peek(token.COMMA) then
 			return nil
 		end

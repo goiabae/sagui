@@ -17,6 +17,28 @@ local record Error
 	message: string
 end
 
+local record Map <K, V>
+	where self.kind == "map"
+	kind: string
+	map: { K: V }
+	len: integer
+	new: function ({ K:V }): Map<K, V>
+end
+
+local map_mt: metatable<Map> = {}
+
+function Map.new <K, V> (init: { K:V }): Map<K, V>
+	local pair_count = 0
+	for _, _ in pairs(init) do
+		pair_count = pair_count + 1
+	end
+	return setmetatable({
+		kind = "map",
+		map = init,
+		len = pair_count,
+	} as Map<K, V>, map_mt)
+end
+
 local function test_integer_object (expected: integer, actual: object.Object): Error
 	if actual == nil then
 		return { message = "object was nil" }
@@ -93,10 +115,37 @@ local function test_expected_object (t: testing.T, expected: any, actual: object
 		if actual ~= vm.Null then
 			t:error("object is not Null: %s", type(actual))
 		end
-	else -- should be an array
-		local err = test_intarray_object(expected as {integer}, actual)
-		if err ~= nil then
-			t:error("test_intarray_object failed: %s", err.message)
+	elseif expected is Map<integer, integer> then
+		local expd = expected as Map<integer, integer>
+		if not (actual is object.Hash) then
+			t:error("object is not Hash. got=%s", type(actual))
+			return
+		end
+		local hash = actual as object.Hash
+		if hash.pair_count ~= expd.len then
+			t:error("hash has wrong number of Pairs. want=%s, got=%d", expd.len, hash.pair_count)
+			return
+		end
+		for expected_key, expected_value in pairs(expd.map) do
+			local pair_ = hash.pairs[expected_key]
+			if pair_ == nil then
+				t:error("no pair for given key in Pairs")
+			end
+			local err = test_integer_object(expected_value, pair_.value)
+			if err ~= nil then
+				t:error("test_integer_object failed: %s", err)
+			end
+		end
+	else
+		if actual is object.Array then
+			local err = test_intarray_object(expected as {integer}, actual)
+			if err ~= nil then
+				t:error("test_intarray_object failed: %s", err.message)
+			end
+		elseif actual is object.Hash then
+			local expd = expected as { integer:integer }
+			local hash = actual as object.Hash
+			-- if
 		end
 	end
 end
@@ -225,6 +274,43 @@ local function test_array_literals (t: testing.T)
 	run_vm_tests(t, tests)
 end
 
+local function test_hash_literals (t: testing.T)
+	local tests: {VMTestCase} = {
+		{ input = '{}', expected = Map.new {} },
+		{
+			input = '{1: 2, 2: 3}',
+			expected = Map.new {
+				[object.Integer.new(1):hash_key().value] = 2,
+				[object.Integer.new(2):hash_key().value] = 3,
+			}
+		},
+		{
+			input = '{1 + 1: 2 * 2, 3 + 3: 4 * 4}',
+			expected = Map.new {
+				[object.Integer.new(2):hash_key().value] = 4,
+				[object.Integer.new(6):hash_key().value] = 16,
+			}
+		},
+	}
+	run_vm_tests(t, tests)
+end
+
+local function test_index_expressions (t: testing.T)
+	local tests: {VMTestCase} = {
+		{ input = "[1, 2, 3][1]", expected = 2 },
+		{ input = "[1, 2, 3][0 + 2]", expected = 3 },
+		{ input = "[[1, 1, 1]][0][0]", expected = 1 },
+		{ input = "[][0]", expected = vm.Null },
+		{ input = "[1, 2, 3][99]", expected = vm.Null },
+		{ input = "[1][-1]", expected = vm.Null },
+		{ input = "{1: 1, 2: 2}[1]", expected = 1 },
+		{ input = "{1: 1, 2: 2}[2]", expected = 2 },
+		{ input = "{1: 1}[0]", expected = vm.Null },
+		{ input = "{}[0]", expected = vm.Null },
+	}
+	run_vm_tests(t, tests)
+end
+
 return {
 	domain = "vm",
 	test_cases = {
@@ -234,5 +320,7 @@ return {
 		{ name = "global_let_statement", func = test_global_let_statement },
 		{ name = "string_expressions", func = test_string_expressions },
 		{ name = "array_literals", func = test_array_literals },
+		{ name = "hash_literals", func = test_hash_literals },
+		{ name = "index_expressions", func = test_index_expressions },
 	}
 }

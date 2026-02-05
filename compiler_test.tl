@@ -438,6 +438,87 @@ local function test_array_literals (t: testing.T)
 	run_compiler_test(t, tests)
 end
 
+local function test_hash_literals (t: testing.T)
+	local tests = {
+		{
+			input = '{}',
+			expected_constants = {},
+			expected_instructions = {
+				code.Instructions.new(code.make(code.OpHash, 0)),
+				code.Instructions.new(code.make(code.OpPop)),
+			},
+		},
+		{
+			input = '{1: 2, 3: 4, 5: 6}',
+			expected_constants = {1, 2, 3, 4, 5, 6},
+			expected_instructions = {
+				code.Instructions.new(code.make(code.OpConstant, 0)),
+				code.Instructions.new(code.make(code.OpConstant, 1)),
+				code.Instructions.new(code.make(code.OpConstant, 2)),
+				code.Instructions.new(code.make(code.OpConstant, 3)),
+				code.Instructions.new(code.make(code.OpConstant, 4)),
+				code.Instructions.new(code.make(code.OpConstant, 5)),
+				code.Instructions.new(code.make(code.OpHash, 6)),
+				code.Instructions.new(code.make(code.OpPop)),
+			},
+		},
+		{
+			input = '{1: 2 + 3, 4: 5 * 6}',
+			expected_constants = {1, 2, 3, 4, 5, 6},
+			expected_instructions = {
+				code.Instructions.new(code.make(code.OpConstant, 0)),
+				code.Instructions.new(code.make(code.OpConstant, 1)),
+				code.Instructions.new(code.make(code.OpConstant, 2)),
+				code.Instructions.new(code.make(code.OpAdd)),
+
+				code.Instructions.new(code.make(code.OpConstant, 3)),
+				code.Instructions.new(code.make(code.OpConstant, 4)),
+				code.Instructions.new(code.make(code.OpConstant, 5)),
+				code.Instructions.new(code.make(code.OpMul)),
+
+				code.Instructions.new(code.make(code.OpHash, 4)),
+				code.Instructions.new(code.make(code.OpPop)),
+			},
+		},
+	}
+	run_compiler_test(t, tests)
+end
+
+local function test_index_expressions (t: testing.T)
+	local tests = {
+		{
+			input = '[1, 2, 3][1 + 1]',
+			expected_constants = {1, 2, 3, 1, 1},
+			expected_instructions = {
+				code.Instructions.new(code.make(code.OpConstant, 0)),
+				code.Instructions.new(code.make(code.OpConstant, 1)),
+				code.Instructions.new(code.make(code.OpConstant, 2)),
+				code.Instructions.new(code.make(code.OpArray, 3)),
+				code.Instructions.new(code.make(code.OpConstant, 3)),
+				code.Instructions.new(code.make(code.OpConstant, 4)),
+				code.Instructions.new(code.make(code.OpAdd)),
+				code.Instructions.new(code.make(code.OpIndex)),
+				code.Instructions.new(code.make(code.OpPop)),
+			},
+		},
+		{
+			input = '{1: 2}[2 - 1]',
+			expected_constants = {1, 2, 2, 1},
+			expected_instructions = {
+				code.Instructions.new(code.make(code.OpConstant, 0)),
+				code.Instructions.new(code.make(code.OpConstant, 1)),
+				code.Instructions.new(code.make(code.OpHash, 2)),
+				code.Instructions.new(code.make(code.OpConstant, 2)),
+				code.Instructions.new(code.make(code.OpConstant, 3)),
+				code.Instructions.new(code.make(code.OpSub)),
+				code.Instructions.new(code.make(code.OpIndex)),
+				code.Instructions.new(code.make(code.OpPop)),
+			},
+		},
+	}
+	run_compiler_test(t, tests)
+end
+
 return {
 	domain = "compiler",
 	test_cases = {
@@ -447,5 +528,7 @@ return {
 		{ name = "global_let_statement", func = test_global_let_statement },
 		{ name = "string_expressions", func = test_string_expressions },
 		{ name = "array_literals", func = test_array_literals },
+		{ name = "hash_literals", func = test_hash_literals },
+		{ name = "index_expressions", func = test_index_expressions },
 	}
 }

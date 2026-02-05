@@ -46,6 +46,33 @@ local function test_boolean_object (expected: boolean, actual: object.Object): E
 	return nil
 end
 
+local function test_string_object (expected: string, actual: object.Object): Error
+	if not (actual is object.String) then
+		return { message = string.format("object is not String. got=%s", type(actual)) }
+	end
+	local result = actual as object.String
+	if result.value ~= expected then
+		return { message = string.format("object has wrong value. got='%s', want='%s'", result.value, expected) }
+	end
+	return nil
+end
+
+local function test_intarray_object (expected: {integer}, actual: object.Object): Error
+	if not (actual is object.Array) then
+		return { message = string.format("object not Array: %s", type(actual)) }
+	end
+	local array = actual as object.Array
+	if #array.elements ~= #(expected as {integer}) then
+		return { message = "wrong num of elements" }
+	end
+	for i, expected_elem in ipairs(expected) do
+		local err = test_integer_object(expected_elem, array.elements[i])
+		if err ~= nil then
+			return { message = string.format("test_integer_object failed: %s", err.message) }
+		end
+	end
+end
+
 local function test_expected_object (t: testing.T, expected: any, actual: object.Object)
 	if type(expected) == "number" then
 		local err = test_integer_object(expected as integer, actual)
@@ -57,9 +84,19 @@ local function test_expected_object (t: testing.T, expected: any, actual: object
 		if err ~= nil then
 			t:error("test_boolean_object failed: %s", err.message)
 		end
+	elseif type(expected) == "string" then
+		local err = test_string_object(expected as string, actual)
+		if err ~= nil then
+			t:error("test_string_object failed: %s", err.message)
+		end
 	elseif expected is object.Null then
 		if actual ~= vm.Null then
 			t:error("object is not Null: %s", type(actual))
+		end
+	else -- should be an array
+		local err = test_intarray_object(expected as {integer}, actual)
+		if err ~= nil then
+			t:error("test_intarray_object failed: %s", err.message)
 		end
 	end
 end
@@ -170,6 +207,24 @@ local function test_global_let_statement (t: testing.T)
 	run_vm_tests(t, tests)
 end
 
+local function test_string_expressions (t: testing.T)
+	local tests: {VMTestCase} = {
+		{ input = '"monkey"', expected = "monkey" },
+		{ input = '"mon" + "key"', expected = "monkey" },
+		{ input = '"mon" + "key" + "banana"', expected = "monkeybanana" },
+	}
+	run_vm_tests(t, tests)
+end
+
+local function test_array_literals (t: testing.T)
+	local tests: {VMTestCase} = {
+		{ input = '[]', expected = {} },
+		{ input = '[1, 2, 3]', expected = {1, 2, 3} },
+		{ input = '[1 + 2, 3 * 4, 5 + 6]', expected = {3, 12, 11} },
+	}
+	run_vm_tests(t, tests)
+end
+
 return {
 	domain = "vm",
 	test_cases = {
@@ -177,5 +232,7 @@ return {
 		{ name = "boolean_expressions", func = test_boolean_expressions },
 		{ name = "conditionals", func = test_conditionals },
 		{ name = "global_let_statement", func = test_global_let_statement },
+		{ name = "string_expressions", func = test_string_expressions },
+		{ name = "array_literals", func = test_array_literals },
 	}
 }

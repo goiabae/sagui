@@ -203,6 +203,18 @@ function compiler.Compiler:compile (node: ast.Node): string
 			return string.format("undefined variable %s", ident.value)
 		end
 		self:emit(code.OpGetGlobal, symbol.index)
+	elseif node is ast.StringLiteral then
+		local str = object.String.new((node as ast.StringLiteral).value)
+		self:emit(code.OpConstant, self:add_constant(str))
+	elseif node is ast.ArrayLiteral then
+		local arr_lit = node as ast.ArrayLiteral
+		for _, el in ipairs(arr_lit.elements) do
+			local err = self:compile(el)
+			if err ~= nil then
+				return err
+			end
+		end
+		self:emit(code.OpArray, #arr_lit.elements)
 	end
 	return nil
 end

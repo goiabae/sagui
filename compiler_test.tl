@@ -56,6 +56,17 @@ local function test_integer_object (expected: integer, actual: object.Object): s
 	return nil
 end
 
+local function test_string_object (expected: string, actual: object.Object): string
+	if not (actual is object.String) then
+		return string.format("object is not String. got=%s", type(actual))
+	end
+	local result = actual as object.String
+	if result.value ~= expected then
+		return string.format("object has wrong value. got='%s', want='%s'", result.value, expected)
+	end
+	return nil
+end
+
 local function test_constants (t: testing.T, expected: {any}, actual: {object.Object}): string
 	local _ = t
 	if #expected ~= #actual then
@@ -66,6 +77,11 @@ local function test_constants (t: testing.T, expected: {any}, actual: {object.Ob
 			local err = test_integer_object(constant as integer, actual[i])
 			if err ~= nil then
 				return string.format("constant %d - test_integer_object failed: %s", i, err)
+			end
+		elseif type(constant) == "string" then
+			local err = test_string_object(constant as string, actual[i])
+			if err ~= nil then
+				return string.format("constant %d - test_string_object failed: %s", i, err)
 			end
 		end
 	end
@@ -353,6 +369,75 @@ local function test_global_let_statement (t: testing.T)
 	run_compiler_test(t, tests)
 end
 
+local function test_string_expressions (t: testing.T)
+	local tests = {
+		{
+			input = '"monkey"',
+			expected_constants = {"monkey"},
+			expected_instructions = {
+				code.Instructions.new(code.make(code.OpConstant, 0)),
+				code.Instructions.new(code.make(code.OpPop)),
+			},
+		},
+		{
+			input = '"mon" + "key"',
+			expected_constants = {"mon", "key"},
+			expected_instructions = {
+				code.Instructions.new(code.make(code.OpConstant, 0)),
+				code.Instructions.new(code.make(code.OpConstant, 1)),
+				code.Instructions.new(code.make(code.OpAdd)),
+				code.Instructions.new(code.make(code.OpPop)),
+			},
+		},
+	}
+	run_compiler_test(t, tests)
+end
+
+local function test_array_literals (t: testing.T)
+	local tests = {
+		{
+			input = '[]',
+			expected_constants = {},
+			expected_instructions = {
+				code.Instructions.new(code.make(code.OpArray, 0)),
+				code.Instructions.new(code.make(code.OpPop)),
+			},
+		},
+		{
+			input = '[1, 2, 3]',
+			expected_constants = {1, 2, 3},
+			expected_instructions = {
+				code.Instructions.new(code.make(code.OpConstant, 0)),
+				code.Instructions.new(code.make(code.OpConstant, 1)),
+				code.Instructions.new(code.make(code.OpConstant, 2)),
+				code.Instructions.new(code.make(code.OpArray, 3)),
+				code.Instructions.new(code.make(code.OpPop)),
+			},
+		},
+		{
+			input = '[1 + 2, 3 - 4, 5 * 6]',
+			expected_constants = {1, 2, 3, 4, 5, 6},
+			expected_instructions = {
+				code.Instructions.new(code.make(code.OpConstant, 0)),
+				code.Instructions.new(code.make(code.OpConstant, 1)),
+				code.Instructions.new(code.make(code.OpAdd)),
+
+				code.Instructions.new(code.make(code.OpConstant, 2)),
+				code.Instructions.new(code.make(code.OpConstant, 3)),
+				code.Instructions.new(code.make(code.OpSub)),
+
+				code.Instructions.new(code.make(code.OpConstant, 4)),
+				code.Instructions.new(code.make(code.OpConstant, 5)),
+				code.Instructions.new(code.make(code.OpMul)),
+
+				code.Instructions.new(code.make(code.OpArray, 3)),
+				code.Instructions.new(code.make(code.OpPop)),
+			},
+		},
+	}
+	run_compiler_test(t, tests)
+end
+
 return {
 	domain = "compiler",
 	test_cases = {
@@ -360,5 +445,7 @@ return {
 		{ name = "boolean_expressions", func = test_boolean_expressions },
 		{ name = "conditionals", func = test_conditionals },
 		{ name = "global_let_statement", func = test_global_let_statement },
+		{ name = "string_expressions", func = test_string_expressions },
+		{ name = "array_literals", func = test_array_literals },
 	}
 }

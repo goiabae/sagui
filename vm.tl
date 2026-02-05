@@ -69,6 +69,15 @@ function vm.VM:execute_binary_integer_operation (op: code.Opcode, left: object.O
 	return self:push(object.Integer.new(result))
 end
 
+function vm.VM:execute_binary_string_operation (op: code.Opcode, left: object.Object, right: object.Object): string
+	if op ~= code.OpAdd then
+		return string.format("unknown string operator: %s", op)
+	end
+	local left_value = (left as object.String).value
+	local right_value = (right as object.String).value
+	return self:push(object.String.new(left_value .. right_value))
+end
+
 function vm.VM:execute_binary_operation (op: code.Opcode): string
 	local right = self:pop()
 	local left = self:pop()
@@ -76,6 +85,8 @@ function vm.VM:execute_binary_operation (op: code.Opcode): string
 	local left_type = left:type()
 	if left_type == object.INTEGER_OBJ and right_type == object.INTEGER_OBJ then
 		return self:execute_binary_integer_operation(op, left, right)
+	elseif left_type == object.STRING_OBJ and right_type == object.STRING_OBJ then
+		return self:execute_binary_string_operation(op, left, right)
 	else
 		return string.format("unsupported types for binary operation: %s %s", left_type, right_type)
 	end
@@ -141,6 +152,14 @@ local function is_truthy (obj: object.Object): boolean
 	else
 		return true
 	end
+end
+
+function vm.VM:build_array (start_index: integer, end_index: integer): object.Object
+	local elements = {}
+	for i = start_index, end_index-1 do
+		elements[i-start_index+1] = self.stack[i+1]
+	end
+	return object.Array.new(elements)
 end
 
 function vm.VM:run(): string
@@ -211,7 +230,19 @@ function vm.VM:run(): string
 		elseif op == code.OpSetGlobal then
 			local global_index = code.read_u16(self.instructions.bytes, ip+1+1)
 			ip = ip + 2
+			if global_index > globals_size then
+				error("attempted to index outside of fixed size array `globals'")
+			end
 			self.globals[global_index] = self:pop()
+		elseif op == code.OpArray then
+			local num_elements = code.read_u16(self.instructions.bytes, ip+1+1)
+			ip = ip + 2
+			local array = self:build_array(self.sp - num_elements, self.sp)
+			self.sp = self.sp - num_elements
+			local err = self:push(array)
+			if err ~= nil then
+				return err
+			end
 		end
 		ip = ip + 1
 	end

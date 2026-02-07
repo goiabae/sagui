@@ -30,12 +30,13 @@ local function run_tests (tests: {testing.Test})
 	for _, test in ipairs(tests) do
 		t:set_domain(test.domain)
 		for _, case in ipairs(test.test_cases) do
-			case.func(t)
+			t:set_test(case.name)
+			-- case.func(t)
 			-- -- FIXME: can't get the error object because teal refuses to typecheck the pcall second return value
-			-- local status = pcall(function () case.func(t) end)
-			-- if not status then
-			-- 	break
-			-- end
+			local status = pcall(function () case.func(t) end)
+			if not status then
+				break
+			end
 		end
 		local error_count = #t.errors[test.domain]["ERROR"]
 		local fail_count = #t.errors[test.domain]["FAIL"]
@@ -44,10 +45,10 @@ local function run_tests (tests: {testing.Test})
 		else
 			print(string.format("[%s]: %d \27[31merrors\27[0m, %d \27[31m\27[1mfails\27[0m\27[22m", test.domain, error_count, fail_count))
 			for _, err in ipairs(t.errors[test.domain]["ERROR"]) do
-				print("\27[31mERROR\27[0m: " .. err)
+				print(string.format("\27[31mERROR\27[0m [%s]: %s", err.test_name, err.message))
 			end
 			for _, fail in ipairs(t.errors[test.domain]["FAIL"]) do
-				print("\27[31m\27[1mFAIL\27[0m\27[22m: " .. fail)
+				print(string.format("\27[31m\27[1mFAIL\27[0m\27[22m [%s]: %s", fail.test_name, fail.message))
 			end
 		end
 	end

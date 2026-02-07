@@ -1,12 +1,19 @@
 
+local record Error
+	test_name: string
+	message: string
+end
+
 local record T
-	errors: { string:{ string:{string} } }
+	errors: { string:{ string:{Error} } }
 	current_domain: string
+	current_test: string
 
 	fatal_fail: function(self, string, ...: any)
 	error: function(self, string, ...: any)
 	new: function (): T
 	set_domain: function (self, string)
+	set_test: function (self, string)
 end
 
 local record Test
@@ -19,16 +26,22 @@ local record Test
 end
 
 function T:fatal_fail (str: string, ...)
-	table.insert(self.errors[self.current_domain]["FAIL"], string.format(str, ...))
+	local err = { test_name = self.current_test, message = string.format(str, ...) }
+	table.insert(self.errors[self.current_domain]["FAIL"], err)
 	error()
 end
 
 function T:error (str: string, ...)
-	table.insert(self.errors[self.current_domain]["ERROR"], string.format(str, ...))
+	local err = { test_name = self.current_test, message = string.format(str, ...) }
+	table.insert(self.errors[self.current_domain]["ERROR"], err)
 end
 
 function T.new (): T
-	return setmetatable({ errors = {} }, { __index = T }) as T
+	return setmetatable({
+		errors = {},
+		current_domain = nil,
+		current_test = nil,
+	}, { __index = T }) as T
 end
 
 function T:set_domain (domain: string)
@@ -37,6 +50,10 @@ function T:set_domain (domain: string)
 		["FAIL"] = {},
 	}
 	self.current_domain = domain
+end
+
+function T:set_test (test_name: string)
+	self.current_test = test_name
 end
 
 local testing <const> = {

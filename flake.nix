@@ -18,7 +18,6 @@
     let penlight = pkgs.luaPackages.penlight; in
     let busted = pkgs.luaPackages.busted; in
     let dkjson = pkgs.luaPackages.dkjson; in
-    let dkjson = pkgs.luaPackages.dkjson; in
 
     # Copied from nixpkgs nixos-25.11 tag
     let teal-language-server = pkgs.callPackage (
@@ -113,6 +112,6 @@
       packages.x86_64-linux = {
         inherit busted-tl;
       };
-      devShells.x86_64-linux.default = import ./shell.nix { inherit pkgs teal-language-server; };
+      devShells.x86_64-linux.default = import ./shell.nix { inherit pkgs; };
     };
 }

@@ -775,27 +775,111 @@ local function test_if_else_expression (t: testing.T)
 end
 
 local function test_function_literal_parsing (t: testing.T)
-	local input = "fn(x, y) { x + y; }"
-	local l = lexer.new(input)
-	local p = parser.new(l)
-	local program = p:parse_program()
-	check_parser_errors(t, p)
-	local ck = program_checker {
-		expression_statement_checker(
-			function_literal_checker({ "x", "y" },
-				block_statement_checker {
-					expression_statement_checker(
-						infix_expression_checker(
-							"+",
-							identifier_checker("x"),
-							identifier_checker("y")
-						)
+	local tests: {{string, check_node_fn}} = {
+		{
+			"fn(x, y) { x + y; }",
+			program_checker {
+				expression_statement_checker(
+					function_literal_checker({ "x", "y" },
+						block_statement_checker {
+							expression_statement_checker(
+								infix_expression_checker(
+									"+",
+									identifier_checker("x"),
+									identifier_checker("y")
+								)
+							)
+						}
 					)
-				}
-			)
-		)
+				)
+			}
+		},
+		{
+			"fn() {}",
+			program_checker {
+				expression_statement_checker(
+					function_literal_checker({},
+						block_statement_checker {}
+					)
+				)
+			}
+		},
+		{
+			"fn() { return 3; }",
+			program_checker {
+				expression_statement_checker(
+					function_literal_checker({},
+						block_statement_checker {
+							return_statement_checker(integer_literal_checker(3))
+						}
+					)
+				)
+			}
+		},
+		{
+			"fn(x) { return x + 3; }",
+			program_checker {
+				expression_statement_checker(
+					function_literal_checker({ "x" },
+						block_statement_checker {
+							return_statement_checker(
+								infix_expression_checker(
+									"+",
+									identifier_checker("x"),
+									integer_literal_checker(3)
+								)
+							)
+						}
+					)
+				)
+			}
+		},
+		{
+			"fn(x) { return x + 3; }",
+			program_checker {
+				expression_statement_checker(
+					function_literal_checker({ "x" },
+						block_statement_checker {
+							return_statement_checker(
+								infix_expression_checker(
+									"+",
+									identifier_checker("x"),
+									integer_literal_checker(3)
+								)
+							)
+						}
+					)
+				)
+			}
+		},
+		{
+			"fn() { return 5 + 10; }",
+			program_checker {
+				expression_statement_checker(
+					function_literal_checker({},
+						block_statement_checker {
+							return_statement_checker(
+								infix_expression_checker(
+									"+",
+									integer_literal_checker(5),
+									integer_literal_checker(10)
+								)
+							)
+						}
+					)
+				)
+			}
+		},
 	}
-	ck(t, program)
+	for _, tt in ipairs(tests) do
+		local input = tt[1]
+		local ck = tt[2]
+		local l = lexer.new(input)
+		local p = parser.new(l)
+		local program = p:parse_program()
+		check_parser_errors(t, p)
+		ck(t, program)
+	end
 end
 
 local function test_function_parameter_parsing (t: testing.T)

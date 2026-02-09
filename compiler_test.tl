@@ -83,6 +83,16 @@ local function test_constants (t: testing.T, expected: {any}, actual: {object.Ob
 			if err ~= nil then
 				return string.format("constant %d - test_string_object failed: %s", i, err)
 			end
+		else -- {code.Instructions}
+			local actuali = actual[i]
+			if not (actuali is object.CompiledFunction) then
+				return string.format("constant %d - not a function: %s", i, type(actual[i]))
+			end
+			local fn = actuali as object.CompiledFunction
+			local err = test_instructions(constant as {code.Instructions}, fn.instructions)
+			if err ~= nil then
+				return string.format("constant %d - test_instructions failed: %s", i, err)
+			end
 		end
 	end
 	return nil
@@ -519,6 +529,139 @@ local function test_index_expressions (t: testing.T)
 	run_compiler_test(t, tests)
 end
 
+local function test_functions (t: testing.T)
+	local tests = {
+		{
+			input = "fn() { return 5 + 10; }",
+			expected_constants = {
+				5,
+				10,
+				{
+					code.Instructions.new(code.make(code.OpConstant, 0)),
+					code.Instructions.new(code.make(code.OpConstant, 1)),
+					code.Instructions.new(code.make(code.OpAdd)),
+					code.Instructions.new(code.make(code.OpReturnValue)),
+				},
+			},
+			expected_instructions = {
+					code.Instructions.new(code.make(code.OpConstant, 2)),
+					code.Instructions.new(code.make(code.OpPop)),
+			}
+		},
+		{
+			input = "fn() { 1; 2 }",
+			expected_constants = {
+				1,
+				2,
+				{
+					code.Instructions.new(code.make(code.OpConstant, 0)),
+					code.Instructions.new(code.make(code.OpPop)),
+					code.Instructions.new(code.make(code.OpConstant, 1)),
+					code.Instructions.new(code.make(code.OpReturnValue)),
+				},
+			},
+			expected_instructions = {
+					code.Instructions.new(code.make(code.OpConstant, 2)),
+					code.Instructions.new(code.make(code.OpPop)),
+			}
+		}
+	}
+	run_compiler_test(t, tests)
+end
+
+local function test_functions_without_return_value (t: testing.T)
+	local tests = {
+		{
+			input = "fn() { }",
+			expected_constants = {
+				{
+					code.Instructions.new(code.make(code.OpReturn)),
+				},
+			},
+			expected_instructions = {
+					code.Instructions.new(code.make(code.OpConstant, 0)),
+					code.Instructions.new(code.make(code.OpPop)),
+			}
+		}
+	}
+	run_compiler_test(t, tests)
+end
+
+local function expect_last_instruction(t: testing.T, comp: compiler.Compiler, op: code.Opcode)
+	local last = comp.scopes[comp.scope_index+1].last_instruction
+	if last.opcode ~= op then
+		t:error("last_instruction.opcode wrong. got=%s, want=%s", code.opcode_name(last.opcode), code.opcode_name(op))
+	end
+end
+
+local function expect_scope_index(t: testing.T, comp: compiler.Compiler, n: integer)
+	if comp.scope_index ~= n then
+		return t:error("scope_index wrong. got=%d, want=%d", comp.scope_index, n)
+	end
+end
+
+local function test_function_calls (t: testing.T)
+	local tests = {
+		{
+			input = "fn() { 24 }();",
+			expected_constants = {
+				24,
+				{
+					code.Instructions.new(code.make(code.OpConstant, 0)), -- The literal "24"
+					code.Instructions.new(code.make(code.OpReturnValue)),
+				},
+			},
+			expected_instructions = {
+					code.Instructions.new(code.make(code.OpConstant, 1)), -- The compiled function
+					code.Instructions.new(code.make(code.OpCall)),
+					code.Instructions.new(code.make(code.OpPop)),
+			}
+		},
+		{
+			input = "let noArg = fn() { 24 }; noArg();",
+			expected_constants = {
+				24,
+				{
+					code.Instructions.new(code.make(code.OpConstant, 0)), -- The literal "24"
+					code.Instructions.new(code.make(code.OpReturnValue)),
+				},
+			},
+			expected_instructions = {
+					code.Instructions.new(code.make(code.OpConstant, 1)), -- The compiled function
+					code.Instructions.new(code.make(code.OpSetGlobal, 0)),
+					code.Instructions.new(code.make(code.OpGetGlobal, 0)),
+					code.Instructions.new(code.make(code.OpCall)),
+					code.Instructions.new(code.make(code.OpPop)),
+			}
+		}
+	}
+	run_compiler_test(t, tests)
+end
+
+local function test_compiler_scopes (t: testing.T)
+	local comp = compiler.new()
+	expect_scope_index(t, comp, 0)
+	comp:emit(code.OpMul)
+	comp:enter_scope()
+	expect_scope_index(t, comp, 1)
+	comp:emit(code.OpSub)
+	if #comp.scopes[comp.scope_index+1].instructions.bytes ~= 1 then
+		t:error("instructions length wrong. got=%d", #comp.scopes[comp.scope_index].instructions.bytes)
+	end
+	expect_last_instruction(t, comp, code.OpSub)
+	comp:leave_scope()
+	expect_scope_index(t, comp, 0)
+	comp:emit(code.OpAdd)
+	if #comp.scopes[comp.scope_index+1].instructions.bytes ~= 2 then
+		t:error("instructions length wrong. got=%d", #comp.scopes[comp.scope_index].instructions.bytes)
+	end
+	expect_last_instruction(t, comp, code.OpAdd)
+	local previous = comp.scopes[comp.scope_index+1].previous_instruction
+	if previous.opcode ~= code.OpMul then
+		t:error("previous_instruction.opcode wrong. got=%d, want=%d", previous.opcode, code.OpMul)
+	end
+end
+
 return {
 	domain = "compiler",
 	test_cases = {
@@ -530,5 +673,9 @@ return {
 		{ name = "array_literals", func = test_array_literals },
 		{ name = "hash_literals", func = test_hash_literals },
 		{ name = "index_expressions", func = test_index_expressions },
+		{ name = "functions", func = test_functions },
+		{ name = "compiler_scopes", func = test_compiler_scopes },
+		{ name = "functions_without_return_value", func = test_functions_without_return_value },
+		{ name = "function_calls", func = test_function_calls },
 	}
 }

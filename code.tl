@@ -40,12 +40,16 @@ local record code
 	OpArray: Opcode
 	OpHash: Opcode
 	OpIndex: Opcode
+	OpCall: Opcode
+	OpReturnValue: Opcode
+	OpReturn: Opcode
 
 	definitions: { Opcode:Definition }
 	lookup: function (byte): (Definition, string)
 	make: function (Opcode, ...: integer): {byte}
 	read_operands: function (Definition, Instructions): ({integer}, integer)
 	read_u16: function ({byte}, integer): integer
+	opcode_name: function (Opcode): string
 end
 
 code.OpConstant = 0
@@ -69,6 +73,10 @@ code.OpSetGlobal = 17
 code.OpArray = 18
 code.OpHash = 19
 code.OpIndex = 20
+code.OpCall = 21
+code.OpReturnValue = 22
+code.OpReturn = 23
+
 code.definitions = {
 	[code.OpConstant] = { name = "OpConstant", operand_widths = {2} },
 	[code.OpAdd] = { name = "OpAdd", operand_widths = {} },
@@ -91,7 +99,14 @@ code.definitions = {
 	[code.OpArray] = { name = "OpArray", operand_widths = {2} },
 	[code.OpHash] = { name = "OpHash", operand_widths = {2} },
 	[code.OpIndex] = { name = "OpIndex", operand_widths = {} },
+	[code.OpCall] = { name = "OpCall", operand_widths = {} },
+	[code.OpReturnValue] = { name = "OpReturnValue", operand_widths = {} },
+	[code.OpReturn] = { name = "OpReturn", operand_widths = {} },
 }
+
+function code.opcode_name (op: code.Opcode): string
+	return (code.definitions[op] or {}).name
+end
 
 function code.Instructions:append_bytes (bytes: {code.byte})
 	for _, b in ipairs(bytes) do

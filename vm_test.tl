@@ -142,10 +142,6 @@ local function test_expected_object (t: testing.T, expected: any, actual: object
 			if err ~= nil then
 				t:error("test_intarray_object failed: %s", err.message)
 			end
-		elseif actual is object.Hash then
-			local expd = expected as { integer:integer }
-			local hash = actual as object.Hash
-			-- if
 		end
 	end
 end
@@ -311,6 +307,86 @@ local function test_index_expressions (t: testing.T)
 	run_vm_tests(t, tests)
 end
 
+local function test_calling_functions_without_arguments (t: testing.T)
+	local tests: {VMTestCase} = {
+		{ input = "let fivePlusTen = fn() { 5 + 10; }; fivePlusTen();", expected = 15 },
+		{
+			input = [[
+        let one = fn() { 1; };
+        let two = fn() { 2; };
+        one() + two()
+      ]],
+			expected = 3
+		},
+		{
+			input = [[
+        let a = fn() { 1 };
+        let b = fn() { a() + 1 };
+        let c = fn() { b() + 1 };
+        c();
+      ]],
+			expected = 3
+		},
+	}
+	run_vm_tests(t, tests)
+end
+
+local function test_functions_with_return_statement (t: testing.T)
+	local tests: {VMTestCase} = {
+		{
+			input = [[
+        let earlyExit = fn() { return 99; 100; };
+        earlyExit();
+      ]],
+			expected = 99
+		},
+		{
+			input = [[
+        let earlyExit = fn() { return 99; return 100; };
+        earlyExit();
+      ]],
+			expected = 99
+		},
+	}
+	run_vm_tests(t, tests)
+end
+
+local function test_functions_without_return_value (t: testing.T)
+	local tests: {VMTestCase} = {
+		{
+			input = [[
+        let noReturn = fn() { };
+        noReturn();
+      ]],
+			expected = vm.Null
+		},
+		{
+			input = [[
+        let noReturn = fn() { };
+        let noReturnTwo = fn() { noReturn(); };
+        noReturn();
+        noReturnTwo();
+      ]],
+			expected = vm.Null
+		},
+	}
+	run_vm_tests(t, tests)
+end
+
+local function test_first_class_functions (t: testing.T)
+	local tests: {VMTestCase} = {
+		{
+			input = [[
+        let returnsOne = fn() { 1; };
+        let returnsOneReturner = fn() { returnsOne; };
+        returnsOneReturner()();
+      ]],
+			expected = 1
+		},
+	}
+	run_vm_tests(t, tests)
+end
+
 return {
 	domain = "vm",
 	test_cases = {
@@ -322,5 +398,8 @@ return {
 		{ name = "array_literals", func = test_array_literals },
 		{ name = "hash_literals", func = test_hash_literals },
 		{ name = "index_expressions", func = test_index_expressions },
+		{ name = "calling_functions_without_arguments", func = test_calling_functions_without_arguments },
+		{ name = "functions_with_return_statement", func = test_functions_with_return_statement },
+		{ name = "first_class_functions", func = test_first_class_functions },
 	}
 }

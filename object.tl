@@ -2,6 +2,7 @@
 local ast = require("ast.ast")
 local environment = require("environment")
 local objecti = require("objecti")
+local code = require("code")
 
 local type ObjectType = objecti.ObjectType
 local type Object = objecti.Object
@@ -16,6 +17,7 @@ local STRING_OBJ <const> = "STRING"
 local BUILTIN_OBJ <const> = "BUILTIN"
 local ARRAY_OBJ <const> = "ARRAY"
 local HASH_OBJ <const> = "HASH"
+local COMPILED_FUNCTION_OBJ <const> = "COMPILED_FUNCTION_OBJ"
 
 local type BuiltinFunction = function (...: Object): Object
 
@@ -252,6 +254,23 @@ local interface Hashable
 	hash_key: function (self): HashKey
 end
 
+local record CompiledFunction is Object
+	where self.kind == "COMPILED_FUNCTION_OBJ"
+	kind: string
+	instructions: code.Instructions
+end
+
+function CompiledFunction:type (): ObjectType return COMPILED_FUNCTION_OBJ end
+function CompiledFunction:inspect (): string
+	return string.format("CompiledFunction")
+end
+function CompiledFunction.new (instructions: code.Instructions): CompiledFunction
+	return setmetatable({
+		kind = COMPILED_FUNCTION_OBJ,
+		instructions = instructions,
+	}, { __index = CompiledFunction })
+end
+
 local object <const> = {
 	Object = Object,
 	ObjectType = ObjectType,
@@ -268,6 +287,7 @@ local object <const> = {
 	Hash = Hash,
 	HashKey = HashKey,
 	Hashable = Hashable,
+	CompiledFunction = CompiledFunction,
 
 	INTEGER_OBJ = INTEGER_OBJ,
 	BOOLEAN_OBJ = BOOLEAN_OBJ,
@@ -279,6 +299,7 @@ local object <const> = {
 	BUILTIN_OBJ = BUILTIN_OBJ,
 	ARRAY_OBJ = ARRAY_OBJ,
 	HASH_OBJ = HASH_OBJ,
+	COMPILED_FUNCTION_OBJ = COMPILED_FUNCTION_OBJ,
 }
 
 return object

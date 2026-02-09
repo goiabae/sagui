@@ -5,6 +5,7 @@ local object = require("object")
 
 local stack_size <const> = 2048
 local globals_size <const> = 65536
+local max_frames <const> = 1024
 
 local True <const> = object.Boolean.new(true)
 local False <const> = object.Boolean.new(false)
@@ -19,12 +20,23 @@ local function native_bool_to_boolean_object (input: boolean): object.Boolean
 end
 
 local record vm
+	record Frame
+		fn: object.CompiledFunction
+		ip: integer
+		new_frame: function (object.CompiledFunction): Frame
+		instructions: function (self): code.Instructions
+		ip_add: function (self, integer)
+	end
 	record VM
 		constants: {object.Object}
-		instructions: code.Instructions
 		stack: {object.Object}
 		globals: {object.Object}
 		sp: integer
+		frames: {Frame}
+		frames_index: integer
+		current_frame: function (self): Frame
+		push_frame: function (self, Frame)
+		pop_frame: function (self): Frame
 		stack_top: function (self): object.Object
 		run: function (self): string
 		push: function (self, object.Object): string
@@ -39,6 +51,41 @@ local record vm
 end
 
 vm.Null = Null
+
+function vm.VM:current_frame (): vm.Frame
+	return self.frames[self.frames_index-1+1]
+end
+
+function vm.VM:push_frame (f: vm.Frame)
+	if self.frames_index > max_frames then
+		error("can't push more frames")
+	end
+	self.frames[self.frames_index+1] = f
+	self.frames_index = self.frames_index + 1
+end
+
+function vm.VM:pop_frame (): vm.Frame
+	self.frames_index = self.frames_index - 1
+	return self.frames[self.frames_index + 1]
+end
+
+local frame_mt = {
+	__index = vm.Frame
+}
+function vm.Frame.new_frame (fn: object.CompiledFunction): vm.Frame
+	return setmetatable({
+		fn = fn,
+		ip = -1,
+	} as vm.Frame, frame_mt)
+end
+
+function vm.Frame:instructions (): code.Instructions
+	return self.fn.instructions
+end
+
+function vm.Frame:ip_add (n: integer)
+	self.ip = self.ip + n
+end
 
 function vm.VM:last_popped_stack_elem (): object.Object
 	return self.stack[self.sp+1]
@@ -216,11 +263,15 @@ end
 
 function vm.VM:run(): string
 	local ip = 0
-	while ip < #self.instructions.bytes do
-		local op = self.instructions.bytes[ip+1] as code.Opcode
+	while self:current_frame().ip < #self:current_frame():instructions().bytes do
+		self:current_frame().ip = self:current_frame().ip + 1
+		ip = self:current_frame().ip
+		local ins = self:current_frame():instructions()
+		local op = ins.bytes[ip+1] as code.Opcode
+
 		if op == code.OpConstant then
-			local const_index = code.read_u16(self.instructions.bytes, ip+1+1)
-			ip = ip + 2
+			local const_index = code.read_u16(ins.bytes, ip+1+1)
+			self:current_frame():ip_add(2)
 			local err = self:push(self.constants[const_index+1])
 			if err ~= nil then
 				return err
@@ -258,14 +309,14 @@ function vm.VM:run(): string
 				return err
 			end
 		elseif op == code.OpJump then
-			local pos = code.read_u16(self.instructions.bytes, ip+1+1)
-			ip = pos - 1
+			local pos = code.read_u16(ins.bytes, ip+1+1)
+			self:current_frame().ip = pos - 1
 		elseif op == code.OpJumpNotTruthy then
-			local pos = code.read_u16(self.instructions.bytes, ip+1+1)
-			ip = ip + 2
+			local pos = code.read_u16(ins.bytes, ip+1+1)
+			self:current_frame():ip_add(2)
 			local condition = self:pop()
 			if not is_truthy(condition) then
-				ip = pos - 1
+				self:current_frame().ip = pos - 1
 			end
 		elseif op == code.OpNull then
 			local err = self:push(Null)
@@ -273,22 +324,22 @@ function vm.VM:run(): string
 				return err
 			end
 		elseif op == code.OpGetGlobal then
-			local global_index = code.read_u16(self.instructions.bytes, ip+1+1)
-			ip = ip + 2
+			local global_index = code.read_u16(ins.bytes, ip+1+1)
+			self:current_frame():ip_add(2)
 			local err = self:push(self.globals[global_index])
 			if err ~= nil then
 				return err
 			end
 		elseif op == code.OpSetGlobal then
-			local global_index = code.read_u16(self.instructions.bytes, ip+1+1)
-			ip = ip + 2
+			local global_index = code.read_u16(ins.bytes, ip+1+1)
+			self:current_frame():ip_add(2)
 			if global_index > globals_size then
 				error("attempted to index outside of fixed size array `globals'")
 			end
 			self.globals[global_index] = self:pop()
 		elseif op == code.OpArray then
-			local num_elements = code.read_u16(self.instructions.bytes, ip+1+1)
-			ip = ip + 2
+			local num_elements = code.read_u16(ins.bytes, ip+1+1)
+			self:current_frame():ip_add(2)
 			local array = self:build_array(self.sp - num_elements, self.sp)
 			self.sp = self.sp - num_elements
 			local err = self:push(array)
@@ -296,8 +347,8 @@ function vm.VM:run(): string
 				return err
 			end
 		elseif op == code.OpHash then
-			local num_elements = code.read_u16(self.instructions.bytes, ip+1+1)
-			ip = ip + 2
+			local num_elements = code.read_u16(ins.bytes, ip+1+1)
+			self:current_frame():ip_add(2)
 			local hash, err = self:build_hash(self.sp - num_elements, self.sp)
 			if err ~= nil then
 				return err
@@ -314,8 +365,30 @@ function vm.VM:run(): string
 			if err ~= nil then
 				return err
 			end
+		elseif op == code.OpCall then
+			local a = self.stack[self.sp-1+1]
+			if not (a is object.CompiledFunction) then
+				return string.format("calling non-function")
+			end
+			local fn = a as object.CompiledFunction
+			local frame = vm.Frame.new_frame(fn)
+			self:push_frame(frame)
+		elseif op == code.OpReturnValue then
+			local return_value = self:pop()
+			self:pop_frame()
+			self:pop()
+			local err = self:push(return_value)
+			if err ~= nil then
+				return err
+			end
+		elseif op == code.OpReturn then
+			self:pop_frame()
+			self:pop()
+			local err = self:push(Null)
+			if err ~= nil then
+				return err
+			end
 		end
-		ip = ip + 1
 	end
 	return nil
 end
@@ -336,23 +409,23 @@ function vm.VM:pop (): object.Object
 end
 
 function vm.new (bytecode: compiler.Bytecode): vm.VM
+	local main_fn = object.CompiledFunction.new(bytecode.instructions)
+	local main_frame = vm.Frame.new_frame(main_fn)
+	local frames: {vm.Frame} = {}
+	frames[0+1] = main_frame
 	return setmetatable({
-		instructions = bytecode.instructions,
 		constants = bytecode.constants,
 		stack = {},
 		sp = 0,
 		globals = {},
+		frames = frames,
+		frames_index = 1,
 	}, { __index = vm.VM })
 end
 
 function vm.new_with_globals_store (bytecode: compiler.Bytecode, s: {object.Object}): vm.VM
-	return setmetatable({
-		instructions = bytecode.instructions,
-		constants = bytecode.constants,
-		stack = {},
-		sp = 0,
-		globals = s,
-	}, { __index = vm.VM })
+	local vm_ = vm.new(bytecode)
+	vm_.constants = s
 end
 
 return vm

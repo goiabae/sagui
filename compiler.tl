@@ -13,6 +13,11 @@ local record compiler
 		opcode: code.Opcode
 		position: integer
 	end
+	record CompilationScope
+		instructions: code.Instructions
+		last_instruction: EmittedInstruction
+		previous_instruction: EmittedInstruction
+	end
 	record Compiler
 		instructions: code.Instructions
 		constants: {object.Object}
@@ -24,34 +29,60 @@ local record compiler
 		emit: function (self, code.Opcode, ...: integer): integer
 		add_instruction: function (self, {code.byte}): integer
 		symbol_table: symbol_table.SymbolTable
+		scopes: {CompilationScope}
+		scope_index: integer
+		current_instructions: function (self): code.Instructions
+		enter_scope: function (self)
+		leave_scope: function (self): code.Instructions
 	end
 	new: function (): Compiler
 	new_with_state: function (symbol_table.SymbolTable, {object.Object}): Compiler
 end
 
+function compiler.Compiler:enter_scope ()
+	local scope = {
+		instructions = code.Instructions.new(),
+		last_instruction = nil,
+		previous_instruction = nil,
+	} as compiler.CompilationScope
+	table.insert(self.scopes, scope)
+	self.scope_index = self.scope_index + 1
+end
+
+function compiler.Compiler:leave_scope (): code.Instructions
+	local instructions = self:current_instructions()
+	table.remove(self.scopes) -- pop last
+	self.scope_index = self.scope_index - 1
+	return instructions
+end
+
+function compiler.Compiler:current_instructions (): code.Instructions
+	return self.scopes[self.scope_index+1].instructions
+end
+
 function compiler.Compiler:replace_instruction (pos: integer, new_instruction: {code.byte})
 	for i = 0, #new_instruction - 1 do
-		self.instructions.bytes[pos+i] = new_instruction[i+1]
+		self.scopes[self.scope_index+1].instructions.bytes[pos+i] = new_instruction[i+1]
 	end
 end
 
 function compiler.Compiler:change_operand(op_pos: integer, operand: integer)
-	local op = self.instructions.bytes[op_pos] as code.Opcode
+	local op = self:current_instructions().bytes[op_pos] as code.Opcode
 	local new_instruction = code.make(op, operand)
 	self:replace_instruction(op_pos, new_instruction)
 end
 
 function compiler.Compiler:add_instruction (ins: {code.byte}): integer
-	local pos_new_instruction = #self.instructions.bytes + 1
-	self.instructions:append_bytes(ins)
+	local pos_new_instruction = #self:current_instructions().bytes + 1
+	self:current_instructions():append_bytes(ins)
 	return pos_new_instruction
 end
 
 function compiler.Compiler:set_last_instruction (op: code.Opcode, pos: integer)
-	local previous = self.last_instruction
+	local previous = self.scopes[self.scope_index+1].last_instruction
 	local last: compiler.EmittedInstruction = { opcode = op, position = pos }
-	self.previous_instruction = previous
-	self.last_instruction = last
+	self.scopes[self.scope_index+1].previous_instruction = previous
+	self.scopes[self.scope_index+1].last_instruction = last
 end
 
 function compiler.Compiler:emit (op: code.Opcode, ...: integer): integer
@@ -61,14 +92,24 @@ function compiler.Compiler:emit (op: code.Opcode, ...: integer): integer
 	return pos
 end
 
-function compiler.Compiler:last_instruction_is_pop (): boolean
-	return self.last_instruction.opcode == code.OpPop
+function compiler.Compiler:last_instruction_is (op: code.Opcode): boolean
+	if #self:current_instructions().bytes == 0 then
+		return false
+	else
+		return self.scopes[self.scope_index+1].last_instruction.opcode == op
+	end
 end
 
 function compiler.Compiler:remove_last_pop ()
-	self.instructions = self.instructions:drop_bytes(1)
-	assert(self.instructions ~= nil)
-	self.last_instruction = self.previous_instruction
+	self.scopes[self.scope_index+1].instructions = self.scopes[self.scope_index+1].instructions:drop_bytes(1)
+	assert(self.scopes[self.scope_index+1].instructions ~= nil)
+	self.scopes[self.scope_index+1].last_instruction = self.scopes[self.scope_index+1].previous_instruction
+end
+
+function compiler.Compiler:replace_last_pop_with_return ()
+	local last_pos = self.scopes[self.scope_index + 1].last_instruction.position
+	self:replace_instruction(last_pos, code.make(code.OpReturnValue))
+	self.scopes[self.scope_index + 1].last_instruction.opcode = code.OpReturnValue
 end
 
 function compiler.Compiler:compile (node: ast.Node): string
@@ -161,11 +202,11 @@ function compiler.Compiler:compile (node: ast.Node): string
 		if err ~= nil then
 			return err
 		end
-		if self:last_instruction_is_pop() then
+		if self:last_instruction_is(code.OpPop) then
 			self:remove_last_pop()
 		end
 		local jump_pos = self:emit(code.OpJump, 9999)
-		local after_consequence_pos = #self.instructions.bytes
+		local after_consequence_pos = #self:current_instructions().bytes
 		self:change_operand(jump_not_truthy_pos, after_consequence_pos)
 		if if_exp.alternative == nil then
 			self:emit(code.OpNull)
@@ -174,11 +215,11 @@ function compiler.Compiler:compile (node: ast.Node): string
 			if err ~= nil then
 				return err
 			end
-			if self:last_instruction_is_pop() then
+			if self:last_instruction_is(code.OpPop) then
 				self:remove_last_pop()
 			end
 		end
-		local after_alternative_pos = #self.instructions.bytes
+		local after_alternative_pos = #self:current_instructions().bytes
 		self:change_operand(jump_pos, after_alternative_pos)
 	elseif node is ast.BlockStatement then
 		local blk = node as ast.BlockStatement
@@ -246,6 +287,36 @@ function compiler.Compiler:compile (node: ast.Node): string
 			return err
 		end
 		self:emit(code.OpIndex)
+	elseif node is ast.FunctionLiteral then
+		local func_lit = node as ast.FunctionLiteral
+		self:enter_scope()
+		local err = self:compile(func_lit.body)
+		if err ~= nil then
+			return err
+		end
+		if self:last_instruction_is(code.OpPop) then
+			self:replace_last_pop_with_return()
+		end
+		if not self:last_instruction_is(code.OpReturnValue) then
+			self:emit(code.OpReturn)
+		end
+		local instructions = self:leave_scope()
+		local compiled_fn = object.CompiledFunction.new(instructions)
+		self:emit(code.OpConstant, self:add_constant(compiled_fn))
+	elseif node is ast.ReturnStatement then
+		local ret = node as ast.ReturnStatement
+		local err = self:compile(ret.return_value)
+		if err ~= nil then
+			return err
+		end
+		self:emit(code.OpReturnValue)
+	elseif node is ast.CallExpression then
+		local call = node as ast.CallExpression
+		local err = self:compile(call.func)
+		if err ~= nil then
+			return err
+		end
+		self:emit(code.OpCall)
 	end
 	return nil
 end
@@ -258,29 +329,31 @@ end
 
 function compiler.Compiler:bytecode (): compiler.Bytecode
 	return {
-		instructions = self.instructions,
+		instructions = self:current_instructions(),
 		constants = self.constants,
 	}
 end
 
 function compiler.new (): compiler.Compiler
 	return setmetatable({
-		instructions = code.Instructions.new(),
 		constants = {},
-		last_instruction = {},
-		previous_instruction = {},
 		symbol_table = symbol_table.SymbolTable.new(),
-	}, { __index = compiler.Compiler })
+		scopes = {
+			{
+				instructions = code.Instructions.new(),
+				last_instruction = nil,
+				previous_instruction = nil,
+			} as compiler.CompilationScope
+		},
+		scope_index = 0,
+	} as compiler.Compiler, { __index = compiler.Compiler })
 end
 
 function compiler.new_with_state (s: symbol_table.SymbolTable, constants: {object.Object}): compiler.Compiler
-	return setmetatable({
-		instructions = code.Instructions.new(),
-		constants = constants,
-		last_instruction = {},
-		previous_instruction = {},
-		symbol_table = s,
-	}, { __index = compiler.Compiler })
+	local c = compiler.new()
+	c.symbol_table = s
+	c.constants = constants
+	return c
 end
 
 return compiler

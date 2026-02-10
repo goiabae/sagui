@@ -400,6 +400,7 @@ return {
 		{ name = "index_expressions", func = test_index_expressions },
 		{ name = "calling_functions_without_arguments", func = test_calling_functions_without_arguments },
 		{ name = "functions_with_return_statement", func = test_functions_with_return_statement },
+		{ name = "functions_without_return_value", func = test_functions_without_return_value },
 		{ name = "first_class_functions", func = test_first_class_functions },
 	}
 }

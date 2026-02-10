@@ -6,6 +6,7 @@ local function test_make (t: testing.T)
 	local tests: {{code.Opcode, {integer}, {integer}}} = {
 		{ code.OpConstant, {65534}, { code.OpConstant, 255, 254 } },
 		{ code.OpAdd, {}, { code.OpAdd } },
+		{ code.OpGetLocal, {255}, { code.OpGetLocal, 255 } },
 	}
 	for _, tt in ipairs(tests) do
 		local instruction = code.make(tt[1], table.unpack(tt[2]))
@@ -23,13 +24,15 @@ end
 local function test_instruction_string (t: testing.T)
 	local instructions = {
 		code.make(code.OpAdd),
+		code.make(code.OpGetLocal, 1),
 		code.make(code.OpConstant, 2),
 		code.make(code.OpConstant, 65535),
 	}
 	local expected =
 		"0000 OpAdd\n" ..
-		"0001 OpConstant 2\n" ..
-		"0004 OpConstant 65535\n"
+		"0001 OpGetLocal 1\n" ..
+		"0003 OpConstant 2\n" ..
+		"0006 OpConstant 65535\n"
 	local concatted = code.Instructions.new()
 	for _, ins in ipairs(instructions) do
 		for _, i in ipairs(ins) do
@@ -44,6 +47,7 @@ end
 local function test_read_operands (t: testing.T)
 	local tests = {
 		{ op = code.OpConstant, operands = { 65535 }, bytes_read = 2 },
+		{ op = code.OpGetLocal, operands = { 255 }, bytes_read = 1 },
 	}
 	for _, tt in ipairs(tests) do
 		local instruction = code.Instructions.new(code.make(tt.op, table.unpack(tt.operands)))

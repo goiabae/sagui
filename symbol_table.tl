@@ -2,6 +2,7 @@
 local type SymbolScope = string
 
 local GlobalScope <const>: SymbolScope = "GLOBAL"
+local LocalScope <const>: SymbolScope = "LOCAL"
 
 local record Symbol
 	name: string
@@ -41,6 +42,7 @@ function Symbol.new (name: string, scope: SymbolScope, index: integer): Symbol
 end
 
 local record SymbolTable
+	outer: SymbolTable
 	store: { string:Symbol }
 	num_definitions: integer
 	new: function (): SymbolTable
@@ -50,13 +52,21 @@ end
 
 function SymbolTable.new (): SymbolTable
 	return setmetatable({
+		outer = nil,
 		store = {},
 		num_definitions = 0,
 	}, { __index = SymbolTable })
 end
 
+function SymbolTable.new_enclosed (outer: SymbolTable): SymbolTable
+	local s = SymbolTable.new()
+	s.outer = outer
+	return s
+end
+
 function SymbolTable:define (name: string): Symbol
-	local symbol: Symbol = Symbol.new(name, GlobalScope, self.num_definitions)
+	local scope = self.outer == nil and GlobalScope or LocalScope
+	local symbol: Symbol = Symbol.new(name, scope, self.num_definitions)
 	self.store[name] = symbol
 	self.num_definitions = self.num_definitions + 1
 	return symbol
@@ -64,12 +74,17 @@ end
 
 function SymbolTable:resolve (name: string): (Symbol, boolean)
 	local obj = self.store[name]
-	return obj, obj ~= nil
+	if obj == nil and self.outer ~= nil then
+		return self.outer:resolve(name)
+	else
+		return obj, obj ~= nil
+	end
 end
 
 return {
 	SymbolScope = SymbolScope,
 	GlobalScope = GlobalScope,
+	LocalScope = LocalScope,
 	Symbol = Symbol,
 	SymbolTable = SymbolTable,
 }

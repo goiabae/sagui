@@ -641,6 +641,7 @@ end
 local function test_compiler_scopes (t: testing.T)
 	local comp = compiler.new()
 	expect_scope_index(t, comp, 0)
+	local global_symbol_table = comp.symbol_table
 	comp:emit(code.OpMul)
 	comp:enter_scope()
 	expect_scope_index(t, comp, 1)
@@ -649,8 +650,17 @@ local function test_compiler_scopes (t: testing.T)
 		t:error("instructions length wrong. got=%d", #comp.scopes[comp.scope_index].instructions.bytes)
 	end
 	expect_last_instruction(t, comp, code.OpSub)
+	if comp.symbol_table.outer ~= global_symbol_table then
+		t:error("compiler did not enclose symbol_table")
+	end
 	comp:leave_scope()
 	expect_scope_index(t, comp, 0)
+	if comp.symbol_table ~= global_symbol_table then
+		t:error("compiler did not restore global symbol table")
+	end
+	if comp.symbol_table.outer ~= nil then
+		t:error("compiler modified global symbol table incorrectly")
+	end
 	comp:emit(code.OpAdd)
 	if #comp.scopes[comp.scope_index+1].instructions.bytes ~= 2 then
 		t:error("instructions length wrong. got=%d", #comp.scopes[comp.scope_index].instructions.bytes)
@@ -660,6 +670,79 @@ local function test_compiler_scopes (t: testing.T)
 	if previous.opcode ~= code.OpMul then
 		t:error("previous_instruction.opcode wrong. got=%d, want=%d", previous.opcode, code.OpMul)
 	end
+end
+
+local function test_let_statement_scopes (t: testing.T)
+	local tests: {CompilerTestCase} = {
+		{
+			input = [[
+        let num = 55;
+        fn() { num }
+      ]],
+			expected_constants = {
+				55,
+				{
+					code.Instructions.new(code.make(code.OpGetGlobal, 0)),
+					code.Instructions.new(code.make(code.OpReturnValue)),
+				},
+			},
+			expected_instructions = {
+					code.Instructions.new(code.make(code.OpConstant, 0)),
+					code.Instructions.new(code.make(code.OpSetGlobal, 0)),
+					code.Instructions.new(code.make(code.OpConstant, 1)),
+					code.Instructions.new(code.make(code.OpPop)),
+			}
+		},
+		{
+			input = [[
+        fn() {
+          let  num = 55;
+          num
+        }
+      ]],
+			expected_constants = {
+				55,
+				{
+					code.Instructions.new(code.make(code.OpConstant, 0)),
+					code.Instructions.new(code.make(code.OpSetLocal, 0)),
+					code.Instructions.new(code.make(code.OpGetLocal, 0)),
+					code.Instructions.new(code.make(code.OpReturnValue)),
+				},
+			},
+			expected_instructions = {
+					code.Instructions.new(code.make(code.OpConstant, 1)),
+					code.Instructions.new(code.make(code.OpPop)),
+			}
+		},
+		{
+			input = [[
+        fn() {
+          let a = 55;
+          let b = 77;
+          a + b
+        }
+      ]],
+			expected_constants = {
+				55,
+				77,
+				{
+					code.Instructions.new(code.make(code.OpConstant, 0)),
+					code.Instructions.new(code.make(code.OpSetLocal, 0)),
+					code.Instructions.new(code.make(code.OpConstant, 1)),
+					code.Instructions.new(code.make(code.OpSetLocal, 1)),
+					code.Instructions.new(code.make(code.OpGetLocal, 0)),
+					code.Instructions.new(code.make(code.OpGetLocal, 1)),
+					code.Instructions.new(code.make(code.OpAdd)),
+					code.Instructions.new(code.make(code.OpReturnValue)),
+				},
+			},
+			expected_instructions = {
+					code.Instructions.new(code.make(code.OpConstant, 2)),
+					code.Instructions.new(code.make(code.OpPop)),
+			}
+		},
+	}
+	run_compiler_test(t, tests)
 end
 
 return {
@@ -677,5 +760,6 @@ return {
 		{ name = "compiler_scopes", func = test_compiler_scopes },
 		{ name = "functions_without_return_value", func = test_functions_without_return_value },
 		{ name = "function_calls", func = test_function_calls },
+		{ name = "let_statement_scopes", func = test_let_statement_scopes },
 	}
 }

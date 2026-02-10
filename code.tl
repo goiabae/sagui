@@ -43,6 +43,8 @@ local record code
 	OpCall: Opcode
 	OpReturnValue: Opcode
 	OpReturn: Opcode
+	OpGetLocal: Opcode
+	OpSetLocal: Opcode
 
 	definitions: { Opcode:Definition }
 	lookup: function (byte): (Definition, string)
@@ -76,6 +78,8 @@ code.OpIndex = 20
 code.OpCall = 21
 code.OpReturnValue = 22
 code.OpReturn = 23
+code.OpGetLocal = 24
+code.OpSetLocal = 25
 
 code.definitions = {
 	[code.OpConstant] = { name = "OpConstant", operand_widths = {2} },
@@ -102,6 +106,8 @@ code.definitions = {
 	[code.OpCall] = { name = "OpCall", operand_widths = {} },
 	[code.OpReturnValue] = { name = "OpReturnValue", operand_widths = {} },
 	[code.OpReturn] = { name = "OpReturn", operand_widths = {} },
+	[code.OpGetLocal] = { name = "OpGetLocal", operand_widths = {1} },
+	[code.OpSetLocal] = { name = "OpSetLocal", operand_widths = {1} },
 }
 
 function code.opcode_name (op: code.Opcode): string
@@ -196,6 +202,8 @@ function code.make (op: code.Opcode, ...: integer): {code.byte}
 		local width = def.operand_widths[i]
 		if width == 2 then
 			put_big_endian_binary_u16(instruction, offset, o)
+		elseif width == 1 then
+			instruction[offset] = o as code.byte
 		end
 		offset = offset + width
 	end
@@ -203,10 +211,18 @@ function code.make (op: code.Opcode, ...: integer): {code.byte}
 end
 
 function code.read_u16 (bytes: {code.byte}, offset: integer): integer
-	if bytes[offset] == nil then
+	if bytes[offset] == nil or bytes[offset+1] == nil then
 		error(string.format("bytes (len %d) with offset %d was nil", #bytes, offset))
 	end
 	local v, _ = string.unpack("H", string.pack("BB", bytes[offset+1], bytes[offset]))
+	return v
+end
+
+function code.read_u8 (bytes: {code.byte}, offset: integer): integer
+	if bytes[offset] == nil then
+		error(string.format("bytes (len %d) with offset %d was nil", #bytes, offset))
+	end
+	local v, _ = string.unpack("B", string.pack("B", bytes[offset]))
 	return v
 end
 
@@ -216,6 +232,8 @@ function code.read_operands (def: code.Definition, ins: code.Instructions): ({in
 	for i, width in ipairs(def.operand_widths) do
 		if width == 2 then
 			operands[i] = code.read_u16(ins.bytes, offset+1)
+		elseif width == 1 then
+			operands[i] = code.read_u8(ins.bytes, offset+1)
 		end
 		offset = offset + width
 	end

@@ -47,12 +47,14 @@ function compiler.Compiler:enter_scope ()
 	} as compiler.CompilationScope
 	table.insert(self.scopes, scope)
 	self.scope_index = self.scope_index + 1
+	self.symbol_table = symbol_table.SymbolTable.new_enclosed(self.symbol_table)
 end
 
 function compiler.Compiler:leave_scope (): code.Instructions
 	local instructions = self:current_instructions()
 	table.remove(self.scopes) -- pop last
 	self.scope_index = self.scope_index - 1
+	self.symbol_table = self.symbol_table.outer
 	return instructions
 end
 
@@ -236,14 +238,22 @@ function compiler.Compiler:compile (node: ast.Node): string
 			return err
 		end
 		local symbol = self.symbol_table:define(let_stmt.name.value)
-		self:emit(code.OpSetGlobal, symbol.index)
+		if symbol.scope == symbol_table.GlobalScope then
+			self:emit(code.OpSetGlobal, symbol.index)
+		else
+			self:emit(code.OpSetLocal, symbol.index)
+		end
 	elseif node is ast.Identifier then
 		local ident = node as ast.Identifier
 		local symbol, ok = self.symbol_table:resolve(ident.value)
 		if not ok then
 			return string.format("undefined variable %s", ident.value)
 		end
-		self:emit(code.OpGetGlobal, symbol.index)
+		if symbol.scope == symbol_table.GlobalScope then
+			self:emit(code.OpGetGlobal, symbol.index)
+		else
+			self:emit(code.OpGetLocal, symbol.index)
+		end
 	elseif node is ast.StringLiteral then
 		local str = object.String.new((node as ast.StringLiteral).value)
 		self:emit(code.OpConstant, self:add_constant(str))

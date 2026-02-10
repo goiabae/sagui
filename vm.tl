@@ -389,19 +389,10 @@ function vm.VM:run(): string
 			if err ~= nil then
 				return err
 			end
-			-- local a = self.stack[self.sp-1-num_args+1]
-			-- if not (a is object.CompiledFunction) then
-			-- 	return string.format("calling non-function")
-			-- end
-			-- local fn = a as object.CompiledFunction
-			-- local frame = vm.Frame.new_frame(fn, self.sp)
-			-- self:push_frame(frame)
-			-- self.sp = frame.base_pointer + fn.num_locals
 		elseif op == code.OpReturnValue then
 			local return_value = self:pop()
 			local frame = self:pop_frame()
 			self.sp = frame.base_pointer - 1
-			--self:pop()
 			local err = self:push(return_value)
 			if err ~= nil then
 				return err
@@ -409,7 +400,6 @@ function vm.VM:run(): string
 		elseif op == code.OpReturn then
 			local frame = self:pop_frame()
 			self.sp = frame.base_pointer - 1
-			--self:pop()
 			local err = self:push(Null)
 			if err ~= nil then
 				return err

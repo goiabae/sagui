@@ -464,9 +464,9 @@ function vm.new (bytecode: compiler.Bytecode): vm.VM
 	}, { __index = vm.VM })
 end
 
-function vm.new_with_globals_store (bytecode: compiler.Bytecode, s: {object.Object}): vm.VM
+function vm.new_with_globals_store (bytecode: compiler.Bytecode, globals: {object.Object}): vm.VM
 	local vm_ = vm.new(bytecode)
-	vm_.constants = s
+	vm_.globals = globals
 	return vm_
 end
 

@@ -300,6 +300,9 @@ function compiler.Compiler:compile (node: ast.Node): string
 	elseif node is ast.FunctionLiteral then
 		local func_lit = node as ast.FunctionLiteral
 		self:enter_scope()
+		for _, p in ipairs(func_lit.parameters) do
+			self.symbol_table:define(p.value)
+		end
 		local err = self:compile(func_lit.body)
 		if err ~= nil then
 			return err
@@ -310,8 +313,9 @@ function compiler.Compiler:compile (node: ast.Node): string
 		if not self:last_instruction_is(code.OpReturnValue) then
 			self:emit(code.OpReturn)
 		end
+		local num_locals = self.symbol_table.num_definitions
 		local instructions = self:leave_scope()
-		local compiled_fn = object.CompiledFunction.new(instructions)
+		local compiled_fn = object.CompiledFunction.new(instructions, num_locals, #func_lit.parameters)
 		self:emit(code.OpConstant, self:add_constant(compiled_fn))
 	elseif node is ast.ReturnStatement then
 		local ret = node as ast.ReturnStatement
@@ -326,7 +330,13 @@ function compiler.Compiler:compile (node: ast.Node): string
 		if err ~= nil then
 			return err
 		end
-		self:emit(code.OpCall)
+		for _, a in ipairs(call.arguments) do
+			err = self:compile(a)
+			if err ~= nil then
+				return err
+			end
+		end
+		self:emit(code.OpCall, #call.arguments)
 	end
 	return nil
 end

@@ -377,14 +377,149 @@ local function test_first_class_functions (t: testing.T)
 	local tests: {VMTestCase} = {
 		{
 			input = [[
-        let returnsOne = fn() { 1; };
-        let returnsOneReturner = fn() { returnsOne; };
+        let returnsOneReturner = fn() {
+          let returnsOne = fn() { 1; };
+          returnsOne;
+        };
         returnsOneReturner()();
       ]],
 			expected = 1
 		},
 	}
 	run_vm_tests(t, tests)
+end
+
+local function test_calling_functions_with_bindings (t: testing.T)
+	local tests: {VMTestCase} = {
+		{
+			input = [[
+        let one = fn() { let one = 1; one };
+        one();
+      ]],
+			expected = 1
+		},
+		{
+			input = [[
+        let oneAndTwo = fn() { let one = 1; let two = 2; one + two; };
+        oneAndTwo();
+      ]],
+			expected = 3
+		},
+		{
+			input = [[
+        let oneAndTwo = fn() { let one = 1; let two = 2; one + two; };
+        let threeAndFour = fn() { let three = 3; let four = 4; three + four; };
+        oneAndTwo() + threeAndFour();
+      ]],
+			expected = 10
+		},
+		{
+			input = [[
+        let firstFoobar = fn() { let foobar = 50; foobar; };
+        let secondFoobar = fn() { let foobar = 100; foobar; };
+        firstFoobar() + secondFoobar();
+      ]],
+			expected = 150
+		},
+		{
+			input = [[
+        let globalSeed = 50;
+        let minusOne = fn() { let num = 1; globalSeed - num; };
+        let minusTwo = fn() { let num = 2; globalSeed - num; };
+        minusOne() + minusTwo();
+      ]],
+			expected = 97
+		},
+	}
+	run_vm_tests(t, tests)
+end
+
+local function test_calling_functions_with_arguments_and_bindings (t: testing.T)
+	local tests: {VMTestCase} = {
+		{
+			input = [[
+        let identity = fn(a) { a; };
+        identity(4);
+      ]],
+			expected = 4
+		},
+		{
+			input = [[
+        let sum = fn(a, b) { a + b; };
+        sum(1, 2);
+      ]],
+			expected = 3
+		},
+		{
+			input = [[
+        let sum = fn(a, b) { let c = a + b; c; };
+        sum(1, 2);
+      ]],
+			expected = 3
+		},
+		{
+			input = [[
+        let sum = fn(a, b) { let c = a + b; c; };
+        sum(1, 2) + sum(3, 4);
+      ]],
+			expected = 10
+		},
+		{
+			input = [[
+        let sum = fn(a, b) { let c = a + b; c; };
+        let outer = fn() { sum(1, 2) + sum(3, 4); };
+        outer();
+      ]],
+			expected = 10
+		},
+		{
+			input = [[
+        let globalNum = 10;
+        let sum = fn(a, b) { let c = a + b; c + globalNum; };
+        let outer = fn() { sum(1, 2) + sum(3, 4) + globalNum; };
+        outer() + globalNum;
+      ]],
+			expected = 50
+		},
+	}
+	run_vm_tests(t, tests)
+end
+
+local function test_calling_functions_with_wrong_arguments (t: testing.T)
+	local tests: {VMTestCase} = {
+		{
+			input = "fn() { 1; }(1);",
+			expected = "wrong number of arguments: want=0, got=1",
+		},
+		{
+			input = "fn(a) { a; }();",
+			expected = "wrong number of arguments: want=1, got=0",
+		},
+		{
+			input = "fn(a, b) { a + b; }(1);",
+			expected = "wrong number of arguments: want=2, got=1",
+		},
+	}
+	for _, tt in ipairs(tests) do
+		local program = parse(tt.input)
+		local comp = compiler.new()
+		do
+			local err = comp:compile(program)
+			if err ~= nil then
+				t:fatal_fail("copiler error: %s", err)
+			end
+		end
+		local vm_ = vm.new(comp:bytecode())
+		do
+			local err = vm_:run()
+			if err == nil then
+				t:fatal_fail("expected VM error but resulted in none.")
+			end
+			if err ~= tt.expected then
+				t:fatal_fail("wrong VM error: want='%s', got='%s'", tt.expected, err)
+			end
+		end
+	end
 end
 
 return {
@@ -402,5 +537,8 @@ return {
 		{ name = "functions_with_return_statement", func = test_functions_with_return_statement },
 		{ name = "functions_without_return_value", func = test_functions_without_return_value },
 		{ name = "first_class_functions", func = test_first_class_functions },
+		{ name = "calling_functions_with_bindings", func = test_calling_functions_with_bindings },
+		{ name = "calling_functions_with_arguments_and_bindings", func = test_calling_functions_with_arguments_and_bindings },
+		{ name = "calling_functions_with_wrong_arguments", func = test_calling_functions_with_wrong_arguments },
 	}
 }

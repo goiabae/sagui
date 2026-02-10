@@ -23,7 +23,8 @@ local record vm
 	record Frame
 		fn: object.CompiledFunction
 		ip: integer
-		new_frame: function (object.CompiledFunction): Frame
+		base_pointer: integer
+		new_frame: function (object.CompiledFunction, integer): Frame
 		instructions: function (self): code.Instructions
 		ip_add: function (self, integer)
 	end
@@ -72,10 +73,11 @@ end
 local frame_mt = {
 	__index = vm.Frame
 }
-function vm.Frame.new_frame (fn: object.CompiledFunction): vm.Frame
+function vm.Frame.new_frame (fn: object.CompiledFunction, base_pointer: integer): vm.Frame
 	return setmetatable({
 		fn = fn,
 		ip = -1,
+		base_pointer = base_pointer,
 	} as vm.Frame, frame_mt)
 end
 
@@ -261,6 +263,21 @@ function vm.VM:execute_index_expression (left: object.Object, index: object.Obje
 	end
 end
 
+function vm.VM:call_function (num_args: integer): string
+	local a = self.stack[self.sp-1-num_args+1]
+	if not (a is object.CompiledFunction) then
+		return string.format("calling non-function")
+	end
+	local fn = a as object.CompiledFunction
+	if num_args ~= fn.num_parameters then
+		return string.format("wrong number of arguments: want=%d, got=%d", fn.num_parameters, num_args)
+	end
+	local frame = vm.Frame.new_frame(fn, self.sp-num_args)
+	self:push_frame(frame)
+	self.sp = frame.base_pointer + fn.num_locals
+	return nil
+end
+
 function vm.VM:run(): string
 	local ip = 0
 	while self:current_frame().ip < #self:current_frame():instructions().bytes do
@@ -366,25 +383,49 @@ function vm.VM:run(): string
 				return err
 			end
 		elseif op == code.OpCall then
-			local a = self.stack[self.sp-1+1]
-			if not (a is object.CompiledFunction) then
-				return string.format("calling non-function")
+			local num_args = code.read_u8(ins.bytes, ip+1+1)
+			self:current_frame():ip_add(1)
+			local err = self:call_function(num_args)
+			if err ~= nil then
+				return err
 			end
-			local fn = a as object.CompiledFunction
-			local frame = vm.Frame.new_frame(fn)
-			self:push_frame(frame)
+			-- local a = self.stack[self.sp-1-num_args+1]
+			-- if not (a is object.CompiledFunction) then
+			-- 	return string.format("calling non-function")
+			-- end
+			-- local fn = a as object.CompiledFunction
+			-- local frame = vm.Frame.new_frame(fn, self.sp)
+			-- self:push_frame(frame)
+			-- self.sp = frame.base_pointer + fn.num_locals
 		elseif op == code.OpReturnValue then
 			local return_value = self:pop()
-			self:pop_frame()
-			self:pop()
+			local frame = self:pop_frame()
+			self.sp = frame.base_pointer - 1
+			--self:pop()
 			local err = self:push(return_value)
 			if err ~= nil then
 				return err
 			end
 		elseif op == code.OpReturn then
-			self:pop_frame()
-			self:pop()
+			local frame = self:pop_frame()
+			self.sp = frame.base_pointer - 1
+			--self:pop()
 			local err = self:push(Null)
+			if err ~= nil then
+				return err
+			end
+		elseif op == code.OpSetLocal then
+			local local_index = code.read_u8(ins.bytes, ip+1+1)
+			self:current_frame():ip_add(1)
+			local frame = self:current_frame()
+			-- FIXME: off by one?
+			self.stack[frame.base_pointer + local_index + 1] = self:pop()
+		elseif op == code.OpGetLocal then
+			local local_index = code.read_u8(ins.bytes, ip+1+1)
+			self:current_frame():ip_add(1)
+			local frame = self:current_frame()
+			-- FIXME: off by one?
+			local err = self:push(self.stack[frame.base_pointer + local_index + 1])
 			if err ~= nil then
 				return err
 			end
@@ -409,8 +450,8 @@ function vm.VM:pop (): object.Object
 end
 
 function vm.new (bytecode: compiler.Bytecode): vm.VM
-	local main_fn = object.CompiledFunction.new(bytecode.instructions)
-	local main_frame = vm.Frame.new_frame(main_fn)
+	local main_fn = object.CompiledFunction.new(bytecode.instructions, 0, 0)
+	local main_frame = vm.Frame.new_frame(main_fn, 0)
 	local frames: {vm.Frame} = {}
 	frames[0+1] = main_frame
 	return setmetatable({
@@ -426,6 +467,7 @@ end
 function vm.new_with_globals_store (bytecode: compiler.Bytecode, s: {object.Object}): vm.VM
 	local vm_ = vm.new(bytecode)
 	vm_.constants = s
+	return vm_
 end
 
 return vm

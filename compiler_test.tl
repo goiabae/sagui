@@ -601,7 +601,7 @@ local function expect_scope_index(t: testing.T, comp: compiler.Compiler, n: inte
 end
 
 local function test_function_calls (t: testing.T)
-	local tests = {
+	local tests: {CompilerTestCase} = {
 		{
 			input = "fn() { 24 }();",
 			expected_constants = {
@@ -613,7 +613,7 @@ local function test_function_calls (t: testing.T)
 			},
 			expected_instructions = {
 					code.Instructions.new(code.make(code.OpConstant, 1)), -- The compiled function
-					code.Instructions.new(code.make(code.OpCall)),
+					code.Instructions.new(code.make(code.OpCall, 0)),
 					code.Instructions.new(code.make(code.OpPop)),
 			}
 		},
@@ -630,10 +630,95 @@ local function test_function_calls (t: testing.T)
 					code.Instructions.new(code.make(code.OpConstant, 1)), -- The compiled function
 					code.Instructions.new(code.make(code.OpSetGlobal, 0)),
 					code.Instructions.new(code.make(code.OpGetGlobal, 0)),
-					code.Instructions.new(code.make(code.OpCall)),
+					code.Instructions.new(code.make(code.OpCall, 0)),
 					code.Instructions.new(code.make(code.OpPop)),
 			}
-		}
+		},
+		{
+			input = "let oneArg = fn(a) { }; oneArg(24);",
+			expected_constants = {
+				{
+					code.Instructions.new(code.make(code.OpReturn)),
+				},
+				24,
+			},
+			expected_instructions = {
+					code.Instructions.new(code.make(code.OpConstant, 0)),
+					code.Instructions.new(code.make(code.OpSetGlobal, 0)),
+					code.Instructions.new(code.make(code.OpGetGlobal, 0)),
+					code.Instructions.new(code.make(code.OpConstant, 1)),
+					code.Instructions.new(code.make(code.OpCall, 1)),
+					code.Instructions.new(code.make(code.OpPop)),
+			}
+		},
+		{
+			input = "let manyArg = fn(a, b, c) { }; manyArg(24, 25, 26);",
+			expected_constants = {
+				{
+					code.Instructions.new(code.make(code.OpReturn)),
+				},
+				24,
+				25,
+				26,
+			},
+			expected_instructions = {
+					code.Instructions.new(code.make(code.OpConstant, 0)),
+					code.Instructions.new(code.make(code.OpSetGlobal, 0)),
+					code.Instructions.new(code.make(code.OpGetGlobal, 0)),
+					code.Instructions.new(code.make(code.OpConstant, 1)),
+					code.Instructions.new(code.make(code.OpConstant, 2)),
+					code.Instructions.new(code.make(code.OpConstant, 3)),
+					code.Instructions.new(code.make(code.OpCall, 3)),
+					code.Instructions.new(code.make(code.OpPop)),
+			}
+		},
+		{
+			input = "let oneArg = fn(a) { a }; oneArg(24);",
+			expected_constants = {
+				{
+					code.Instructions.new(code.make(code.OpGetLocal, 0)),
+					code.Instructions.new(code.make(code.OpReturnValue)),
+				},
+				24,
+			},
+			expected_instructions = {
+					code.Instructions.new(code.make(code.OpConstant, 0)),
+					code.Instructions.new(code.make(code.OpSetGlobal, 0)),
+					code.Instructions.new(code.make(code.OpGetGlobal, 0)),
+					code.Instructions.new(code.make(code.OpConstant, 1)),
+					code.Instructions.new(code.make(code.OpCall, 1)),
+					code.Instructions.new(code.make(code.OpPop)),
+			}
+		},
+		{
+			input = [[
+        let manyArg = fn(a, b, c) { a; b; c };
+        manyArg(24, 25, 26);
+      ]],
+			expected_constants = {
+				{
+					code.Instructions.new(code.make(code.OpGetLocal, 0)),
+					code.Instructions.new(code.make(code.OpPop)),
+					code.Instructions.new(code.make(code.OpGetLocal, 1)),
+					code.Instructions.new(code.make(code.OpPop)),
+					code.Instructions.new(code.make(code.OpGetLocal, 2)),
+					code.Instructions.new(code.make(code.OpReturnValue)),
+				},
+				24,
+				25,
+				26,
+			},
+			expected_instructions = {
+					code.Instructions.new(code.make(code.OpConstant, 0)),
+					code.Instructions.new(code.make(code.OpSetGlobal, 0)),
+					code.Instructions.new(code.make(code.OpGetGlobal, 0)),
+					code.Instructions.new(code.make(code.OpConstant, 1)),
+					code.Instructions.new(code.make(code.OpConstant, 2)),
+					code.Instructions.new(code.make(code.OpConstant, 3)),
+					code.Instructions.new(code.make(code.OpCall, 3)),
+					code.Instructions.new(code.make(code.OpPop)),
+			}
+		},
 	}
 	run_compiler_test(t, tests)
 end

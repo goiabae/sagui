@@ -258,16 +258,20 @@ local record CompiledFunction is Object
 	where self.kind == "COMPILED_FUNCTION_OBJ"
 	kind: string
 	instructions: code.Instructions
+	num_locals: integer
+	num_parameters: integer
 end
 
 function CompiledFunction:type (): ObjectType return COMPILED_FUNCTION_OBJ end
 function CompiledFunction:inspect (): string
 	return string.format("CompiledFunction")
 end
-function CompiledFunction.new (instructions: code.Instructions): CompiledFunction
+function CompiledFunction.new (instructions: code.Instructions, num_locals: integer, num_parameters: integer): CompiledFunction
 	return setmetatable({
 		kind = COMPILED_FUNCTION_OBJ,
 		instructions = instructions,
+		num_locals = num_locals,
+		num_parameters = num_parameters,
 	}, { __index = CompiledFunction })
 end
 

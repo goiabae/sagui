@@ -103,7 +103,7 @@ code.definitions = {
 	[code.OpArray] = { name = "OpArray", operand_widths = {2} },
 	[code.OpHash] = { name = "OpHash", operand_widths = {2} },
 	[code.OpIndex] = { name = "OpIndex", operand_widths = {} },
-	[code.OpCall] = { name = "OpCall", operand_widths = {} },
+	[code.OpCall] = { name = "OpCall", operand_widths = {1} },
 	[code.OpReturnValue] = { name = "OpReturnValue", operand_widths = {} },
 	[code.OpReturn] = { name = "OpReturn", operand_widths = {} },
 	[code.OpGetLocal] = { name = "OpGetLocal", operand_widths = {1} },

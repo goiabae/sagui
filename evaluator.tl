@@ -20,122 +20,17 @@ local record evaluator
 	eval_index_expression: function (object.Object, object.Object): object.Object
 	eval_hash_literal: function (ast.HashLiteral, environment.Environment): object.Object
 	eval_hash_index_expression: function (object.Object, object.Object): object.Object
-
-	NULL: object.Null
-	TRUE: object.Boolean
-	FALSE: object.Boolean
 end
-
-local NULL <const> = object.Null.new()
-local TRUE <const> = object.Boolean.new(true)
-local FALSE <const> = object.Boolean.new(false)
-
-evaluator.NULL = NULL
-evaluator.TRUE = TRUE
-evaluator.FALSE = FALSE
 
 local function new_error (format: string, ...): object.Error
 	return object.Error.new(string.format(format, ...))
 end
 
-local builtins: { string:object.Builtin } = {
-	["len"] = object.Builtin.new(function (...: object.Object): object.Object
-		local args = { ... }
-		if #args ~= 1 then
-			return new_error("wrong number of arguments. got=%d, want=1", #args)
-		end
-		local fst_arg = args[1]
-		if fst_arg is object.String then
-			return object.Integer.new(#(fst_arg as object.String).value)
-		elseif fst_arg is object.Array then
-			return object.Integer.new(#(fst_arg as object.Array).elements)
-		else
-			return new_error("argument to 'len' not supported, got %s", args[1]:type())
-		end
-	end),
-	["first"] = object.Builtin.new(function (...: object.Object): object.Object
-		local args = { ... }
-		if #args ~= 1 then
-			return new_error("wrong number of arguments. got=%d, want=1", #args)
-		end
-		if args[1]:type() ~= object.ARRAY_OBJ then
-			return new_error("argument to 'first' must be ARRAY, got %s", args[1]:type())
-		end
-		local arr = args[1] as object.Array
-		if #arr.elements > 0 then
-			return arr.elements[1]
-		else
-			return NULL
-		end
-	end),
-	["last"] = object.Builtin.new(function (...: object.Object): object.Object
-		local args = { ... }
-		if #args ~= 1 then
-			return new_error("wrong number of arguments. got=%d, want=1", #args)
-		end
-		if args[1]:type() ~= object.ARRAY_OBJ then
-			return new_error("argument to 'last' must be ARRAY, got %s", args[1]:type())
-		end
-		local arr = args[1] as object.Array
-		local length = #arr.elements
-		if length > 0 then
-			return arr.elements[length]
-		else
-			return NULL
-		end
-	end),
-	["rest"] = object.Builtin.new(function (...: object.Object): object.Object
-		local args = { ... }
-		if #args ~= 1 then
-			return new_error("wrong number of arguments. got=%d, want=1", #args)
-		end
-		if args[1]:type() ~= object.ARRAY_OBJ then
-			return new_error("argument to 'rest' must be ARRAY, got %s", args[1]:type())
-		end
-		local arr = args[1] as object.Array
-		local length = #arr.elements
-		if length > 0 then
-			local new_elements = {}
-			for i = 2, length do
-				table.insert(new_elements, arr.elements[i])
-			end
-			return object.Array.new(new_elements)
-		else
-			return NULL
-		end
-	end),
-	["push"] = object.Builtin.new(function (...: object.Object): object.Object
-		local args = { ... }
-		if #args ~= 2 then
-			return new_error("wrong number of arguments. got=%d, want=2", #args)
-		end
-		if args[1]:type() ~= object.ARRAY_OBJ then
-			return new_error("argument to 'push' must be ARRAY, got %s", args[1]:type())
-		end
-		local arr = args[1] as object.Array
-		local length = #arr.elements
-		local new_elements = {}
-		for i = 1, length do
-			table.insert(new_elements, arr.elements[i])
-		end
-		table.insert(new_elements, args[2])
-		return object.Array.new(new_elements)
-	end),
-	["puts"] = object.Builtin.new(function (...: object.Object): object.Object
-		local args = { ... }
-		for i = 1, #args do
-			local a = args[i]
-			print(a:inspect())
-		end
-		return NULL
-	end),
-}
-
 local function native_bool_to_boolean_object (input: boolean): object.Boolean
 	if input then
-		return TRUE
+		return object.TRUE
 	else
-		return FALSE
+		return object.FALSE
 	end
 end
 
@@ -165,7 +60,12 @@ end
 
 local function apply_function (fn: object.Object, args: {object.Object}): object.Object
 	if fn is object.Builtin then
-		return (fn as object.Builtin).fn(table.unpack(args))
+		local result = (fn as object.Builtin).fn(table.unpack(args))
+		if result ~= nil then
+			return result
+		else
+			return object.NULL
+		end
 	elseif fn is object.Function then
 		local func = fn as object.Function
 		local extended_env = extend_function_env(func, args)
@@ -270,8 +170,9 @@ function evaluator.eval_identifier (node: ast.Identifier, env: environment.Envir
 			return val
 		end
 	end
-	if builtins[node.value] ~= nil then
-		return builtins[node.value]
+	local builtin = object.get_builtin_by_name(node.value)
+	if builtin then
+		return builtin
 	end
 	return new_error("identifier not found: " .. node.value)
 end
@@ -325,14 +226,14 @@ function evaluator.eval_prefix_expression (operator: string, right: object.Objec
 end
 
 function evaluator.eval_bang_operator_expression (right: object.Object): object.Object
-	if right == TRUE then
-		return FALSE
-	elseif right == FALSE then
-		return TRUE
-	elseif right == NULL then
-		return TRUE
+	if right == object.TRUE then
+		return object.FALSE
+	elseif right == object.FALSE then
+		return object.TRUE
+	elseif right == object.NULL then
+		return object.TRUE
 	else
-		return FALSE
+		return object.FALSE
 	end
 end
 
@@ -411,7 +312,7 @@ function evaluator.eval_array_index_expression (array: object.Object, index: obj
 	local idx = (index as object.Integer).value
 	local max = #array_object.elements - 1
 	if idx < 0 or idx > max then
-		return NULL
+		return object.NULL
 	else
 		return array_object.elements[idx+1]
 	end
@@ -435,17 +336,17 @@ function evaluator.eval_hash_index_expression (hash: object.Object, index: objec
 	end
 	local pair = hash_object.pairs[key:hash_key().value]
 	if pair == nil then
-		return NULL
+		return object.NULL
 	end
 	return pair.value
 end
 
 local function is_truthy (obj: object.Object): boolean
-	if obj == TRUE then
+	if obj == object.TRUE then
 		return true
-	elseif obj == FALSE then
+	elseif obj == object.FALSE then
 		return false
-	elseif obj == NULL then
+	elseif obj == object.NULL then
 		return false
 	else
 		return true
@@ -461,7 +362,7 @@ function evaluator.eval_if_expression (ie: ast.IfExpression, env: environment.En
 	elseif ie.alternative ~= nil then
 		return evaluator.eval(ie.alternative, env)
 	else
-		return NULL
+		return object.NULL
 	end
 end
 

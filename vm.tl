@@ -177,7 +177,7 @@ function vm.VM:execute_bang_operator (): string
 		return self:push(False)
 	elseif operand == False then
 		return self:push(True)
-	elseif operand == Null then
+	elseif operand == object.NULL then
 		return self:push(True)
 	else
 		return self:push(False)
@@ -233,7 +233,7 @@ function vm.VM:execute_array_index (left: object.Array, index: object.Integer): 
 	local i = index.value
 	local max = #array_object.elements - 1
 	if i < 0 or i > max then
-		return self:push(Null)
+		return self:push(object.NULL)
 	else
 		return self:push(array_object.elements[i+1])
 	end
@@ -247,7 +247,7 @@ function vm.VM:execute_hash_index (left: object.Hash, index: object.Object): str
 	local key = index as object.Hashable
 	local pair_ = hash_object.pairs[key:hash_key().value]
 	if pair_ == nil then
-		return self:push(Null)
+		return self:push(object.NULL)
 	else
 		return self:push(pair_.value)
 	end
@@ -263,12 +263,7 @@ function vm.VM:execute_index_expression (left: object.Object, index: object.Obje
 	end
 end
 
-function vm.VM:call_function (num_args: integer): string
-	local a = self.stack[self.sp-1-num_args+1]
-	if not (a is object.CompiledFunction) then
-		return string.format("calling non-function")
-	end
-	local fn = a as object.CompiledFunction
+function vm.VM:call_function (fn: object.CompiledFunction, num_args: integer): string
 	if num_args ~= fn.num_parameters then
 		return string.format("wrong number of arguments: want=%d, got=%d", fn.num_parameters, num_args)
 	end
@@ -276,6 +271,37 @@ function vm.VM:call_function (num_args: integer): string
 	self:push_frame(frame)
 	self.sp = frame.base_pointer + fn.num_locals
 	return nil
+end
+
+local function slice <T>(xs: {T}, from: integer, to: integer): {T}
+	local ys = {}
+	for i = from, to-1 do
+		table.insert(ys, xs[i])
+	end
+	return ys
+end
+
+function vm.VM:call_builtin (builtin: object.Builtin, num_args: integer): string
+	local args = slice(self.stack, self.sp-num_args+1, self.sp+1)
+	local result = builtin.fn(table.unpack(args))
+	self.sp = self.sp - num_args - 1
+	if result ~= nil then
+		self:push(result)
+	else
+		self:push(object.NULL)
+	end
+	return nil
+end
+
+function vm.VM:execute_call (num_args: integer): string
+	local callee = self.stack[self.sp-1-num_args+1]
+	if callee is object.CompiledFunction then
+		return self:call_function(callee, num_args)
+	elseif callee is object.Builtin then
+		return self:call_builtin(callee, num_args)
+	else
+		return string.format("calling non-function and non-builtin")
+	end
 end
 
 function vm.VM:run(): string
@@ -336,7 +362,7 @@ function vm.VM:run(): string
 				self:current_frame().ip = pos - 1
 			end
 		elseif op == code.OpNull then
-			local err = self:push(Null)
+			local err = self:push(object.NULL)
 			if err ~= nil then
 				return err
 			end
@@ -385,7 +411,7 @@ function vm.VM:run(): string
 		elseif op == code.OpCall then
 			local num_args = code.read_u8(ins.bytes, ip+1+1)
 			self:current_frame():ip_add(1)
-			local err = self:call_function(num_args)
+			local err = self:execute_call(num_args)
 			if err ~= nil then
 				return err
 			end
@@ -400,7 +426,7 @@ function vm.VM:run(): string
 		elseif op == code.OpReturn then
 			local frame = self:pop_frame()
 			self.sp = frame.base_pointer - 1
-			local err = self:push(Null)
+			local err = self:push(object.NULL)
 			if err ~= nil then
 				return err
 			end
@@ -416,6 +442,17 @@ function vm.VM:run(): string
 			local frame = self:current_frame()
 			-- FIXME: off by one?
 			local err = self:push(self.stack[frame.base_pointer + local_index + 1])
+			if err ~= nil then
+				return err
+			end
+		elseif op == code.OpGetBuiltin then
+			local builtin_index = code.read_u8(ins.bytes, ip+1+1)
+			self:current_frame():ip_add(1)
+			local definition = object.builtins[builtin_index]
+			if definition == nil then
+				return "definition was nil"
+			end
+			local err = self:push(definition[2])
 			if err ~= nil then
 				return err
 			end

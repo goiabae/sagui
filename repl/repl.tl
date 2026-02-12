@@ -38,6 +38,9 @@ local function start (input: FILE, output: FILE)
 	local constants: {object.Object} = {}
 	local globals: {object.Object} = {}
 	local symtab = symbol_table.SymbolTable.new()
+	for i, v in ipairs(object.builtins) do
+		symtab:define_builtin(i, v[1])
+	end
 	while true do
 		output:write(PROMPT)
 		local line = input:read()

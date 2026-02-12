@@ -114,6 +114,16 @@ function compiler.Compiler:replace_last_pop_with_return ()
 	self.scopes[self.scope_index + 1].last_instruction.opcode = code.OpReturnValue
 end
 
+function compiler.Compiler:load_symbol (symbol: symbol_table.Symbol)
+	if symbol.scope == symbol_table.GlobalScope then
+		self:emit(code.OpGetGlobal, symbol.index)
+	elseif symbol.scope == symbol_table.LocalScope then
+		self:emit(code.OpGetLocal, symbol.index)
+	elseif symbol.scope == symbol_table.BuiltinScope then
+		self:emit(code.OpGetBuiltin, symbol.index)
+	end
+end
+
 function compiler.Compiler:compile (node: ast.Node): string
 	if node is ast.Program then
 		for _, s in ipairs((node as ast.Program).statements) do
@@ -249,11 +259,7 @@ function compiler.Compiler:compile (node: ast.Node): string
 		if not ok then
 			return string.format("undefined variable %s", ident.value)
 		end
-		if symbol.scope == symbol_table.GlobalScope then
-			self:emit(code.OpGetGlobal, symbol.index)
-		else
-			self:emit(code.OpGetLocal, symbol.index)
-		end
+		self:load_symbol(symbol)
 	elseif node is ast.StringLiteral then
 		local str = object.String.new((node as ast.StringLiteral).value)
 		self:emit(code.OpConstant, self:add_constant(str))
@@ -355,9 +361,13 @@ function compiler.Compiler:bytecode (): compiler.Bytecode
 end
 
 function compiler.new (): compiler.Compiler
+	local symtab = symbol_table.SymbolTable.new()
+	for i, v in ipairs(object.builtins) do
+		symtab:define_builtin(i-1, v[1])
+	end
 	return setmetatable({
 		constants = {},
-		symbol_table = symbol_table.SymbolTable.new(),
+		symbol_table = symtab,
 		scopes = {
 			{
 				instructions = code.Instructions.new(),

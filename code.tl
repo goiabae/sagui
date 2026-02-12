@@ -45,6 +45,7 @@ local record code
 	OpReturn: Opcode
 	OpGetLocal: Opcode
 	OpSetLocal: Opcode
+	OpGetBuiltin: Opcode
 
 	definitions: { Opcode:Definition }
 	lookup: function (byte): (Definition, string)
@@ -80,6 +81,7 @@ code.OpReturnValue = 22
 code.OpReturn = 23
 code.OpGetLocal = 24
 code.OpSetLocal = 25
+code.OpGetBuiltin = 26
 
 code.definitions = {
 	[code.OpConstant] = { name = "OpConstant", operand_widths = {2} },
@@ -108,6 +110,7 @@ code.definitions = {
 	[code.OpReturn] = { name = "OpReturn", operand_widths = {} },
 	[code.OpGetLocal] = { name = "OpGetLocal", operand_widths = {1} },
 	[code.OpSetLocal] = { name = "OpSetLocal", operand_widths = {1} },
+	[code.OpGetBuiltin] = { name = "OpGetBuiltin", operand_widths = {1} },
 }
 
 function code.opcode_name (op: code.Opcode): string

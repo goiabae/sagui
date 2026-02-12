@@ -3,6 +3,7 @@ local type SymbolScope = string
 
 local GlobalScope <const>: SymbolScope = "GLOBAL"
 local LocalScope <const>: SymbolScope = "LOCAL"
+local BuiltinScope <const>: SymbolScope = "BUILTIN"
 
 local record Symbol
 	name: string
@@ -19,8 +20,8 @@ end
 
 function Symbol.__eq (a: Symbol, b: Symbol): boolean
 	return a.name == b.name
-		and a.scope == b.scope
-		and a.index == b.index
+		--and a.scope == b.scope
+		--and a.index == b.index
 end
 
 function Symbol.new (name: string, scope: SymbolScope, index: integer): Symbol
@@ -32,8 +33,8 @@ function Symbol.new (name: string, scope: SymbolScope, index: integer): Symbol
 		__index = Symbol,
 		__eq = function (a: Symbol, b: Symbol): boolean
 			return a.name == b.name
-				and a.scope == b.scope
-				and a.index == b.index
+				--and a.scope == b.scope
+				--and a.index == b.index
 		end,
 		__tostring = function (self: Symbol): string
 			return string.format("{ name = %s, scope = %s, index = %d }", self.name, self.scope as string, self.index)
@@ -48,6 +49,7 @@ local record SymbolTable
 	new: function (): SymbolTable
 	define: function (self, string): Symbol
 	resolve: function (self, string): (Symbol, boolean)
+	define_builtin: function (self, integer, string): Symbol
 end
 
 function SymbolTable.new (): SymbolTable
@@ -81,10 +83,17 @@ function SymbolTable:resolve (name: string): (Symbol, boolean)
 	end
 end
 
+function SymbolTable:define_builtin (index: integer, name: string): Symbol
+	local symbol = Symbol.new(name, BuiltinScope, index)
+	self.store[name] = symbol
+	return symbol
+end
+
 return {
 	SymbolScope = SymbolScope,
 	GlobalScope = GlobalScope,
 	LocalScope = LocalScope,
+	BuiltinScope = BuiltinScope,
 	Symbol = Symbol,
 	SymbolTable = SymbolTable,
 }

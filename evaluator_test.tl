@@ -117,7 +117,7 @@ local function test_bang_operator (t: testing.T)
 end
 
 local function test_null_object (t: testing.T, obj: object.Object): boolean
-	if obj ~= evaluator.NULL then
+	if obj ~= object.NULL then
 		t:error("object is not NULL. got=%s", obj:type())
 		return false
 	end
@@ -456,8 +456,8 @@ local function test_hash_literals (t: testing.T)
 		[object.String.new("two"):hash_key().value] = 2,
 		[object.String.new("three"):hash_key().value] = 3,
 		[object.Integer.new(4):hash_key().value] = 4,
-		[evaluator.TRUE:hash_key().value] = 5,
-		[evaluator.FALSE:hash_key().value] = 6,
+		[object.TRUE:hash_key().value] = 5,
+		[object.FALSE:hash_key().value] = 6,
 	}
 	local rl = 0
 	for _, _ in pairs(result.pairs) do

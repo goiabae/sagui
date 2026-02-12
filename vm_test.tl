@@ -112,8 +112,17 @@ local function test_expected_object (t: testing.T, expected: any, actual: object
 			t:error("test_string_object failed: %s", err.message)
 		end
 	elseif expected is object.Null then
-		if actual ~= vm.Null then
+		if actual ~= object.NULL then
 			t:error("object is not Null: %s", type(actual))
+		end
+	elseif expected is object.Error then
+		if not (actual is object.Error) then
+			t:error("object is not Error")
+			return
+		end
+		local errobj = actual as object.Error
+		if errobj.message ~= (expected as object.Error).message then
+			t:error("wrong error message. expected '%s', got='%s'", (expected as object.Error).message, errobj.message)
 		end
 	elseif expected is Map<integer, integer> then
 		local expd = expected as Map<integer, integer>
@@ -236,8 +245,8 @@ local function test_conditionals (t: testing.T)
 		{ input = "if (1 < 2) { 10 }", expected = 10 },
 		{ input = "if (1 < 2) { 10 } else { 20 }", expected = 10 },
 		{ input = "if (1 > 2) { 10 } else { 20 }", expected = 20 },
-		{ input = "if (1 > 2) { 10 }", expected = vm.Null },
-		{ input = "if (false) { 10 }", expected = vm.Null },
+		{ input = "if (1 > 2) { 10 }", expected = object.NULL },
+		{ input = "if (false) { 10 }", expected = object.NULL },
 		{ input = "if ((if (false) { 10 })) { 10 } else { 20 }", expected = 20 },
 	}
 	run_vm_tests(t, tests)
@@ -296,13 +305,13 @@ local function test_index_expressions (t: testing.T)
 		{ input = "[1, 2, 3][1]", expected = 2 },
 		{ input = "[1, 2, 3][0 + 2]", expected = 3 },
 		{ input = "[[1, 1, 1]][0][0]", expected = 1 },
-		{ input = "[][0]", expected = vm.Null },
-		{ input = "[1, 2, 3][99]", expected = vm.Null },
-		{ input = "[1][-1]", expected = vm.Null },
+		{ input = "[][0]", expected = object.NULL },
+		{ input = "[1, 2, 3][99]", expected = object.NULL },
+		{ input = "[1][-1]", expected = object.NULL },
 		{ input = "{1: 1, 2: 2}[1]", expected = 1 },
 		{ input = "{1: 1, 2: 2}[2]", expected = 2 },
-		{ input = "{1: 1}[0]", expected = vm.Null },
-		{ input = "{}[0]", expected = vm.Null },
+		{ input = "{1: 1}[0]", expected = object.NULL },
+		{ input = "{}[0]", expected = object.NULL },
 	}
 	run_vm_tests(t, tests)
 end
@@ -358,7 +367,7 @@ local function test_functions_without_return_value (t: testing.T)
         let noReturn = fn() { };
         noReturn();
       ]],
-			expected = vm.Null
+			expected = object.NULL
 		},
 		{
 			input = [[
@@ -367,7 +376,7 @@ local function test_functions_without_return_value (t: testing.T)
         noReturn();
         noReturnTwo();
       ]],
-			expected = vm.Null
+			expected = object.NULL
 		},
 	}
 	run_vm_tests(t, tests)
@@ -522,6 +531,48 @@ local function test_calling_functions_with_wrong_arguments (t: testing.T)
 	end
 end
 
+local function test_calling_functions_with_wrong_arguments2 (t: testing.T)
+	local tests: {VMTestCase} = {
+		{
+			input = 'len("")',
+			expected = 0,
+		},
+		{
+			input = 'len("four")',
+			expected = 4,
+		},
+		{
+			input = 'len("hello world")',
+			expected = 11,
+		},
+		{
+			input = 'len(1)',
+			expected = object.Error.new("argument to 'len' not supported, got INTEGER"),
+		},
+		{
+			input = 'len("one", "two")',
+			expected = object.Error.new("wrong number of arguments. got=2, want=1"),
+		},
+		{
+			input = 'len([1, 2, 3])',
+			expected = 3,
+		},
+		{ input = 'len([])', expected = 0},
+		{ input = 'puts("hello", "world!")', expected = object.NULL},
+		{ input = 'first([1, 2, 3])', expected = 1},
+		{ input = 'first([])', expected = object.NULL},
+		{ input = 'first(1)', expected = object.Error.new("argument to 'first' must be ARRAY, got INTEGER"), },
+		{ input = 'last([1, 2, 3])', expected = 3},
+		{ input = 'last([])', expected = object.NULL },
+		{ input = 'last(1)', expected = object.Error.new("argument to 'last' must be ARRAY, got INTEGER") },
+		{ input = 'rest([1, 2, 3])', expected = { 2, 3 } },
+		{ input = 'rest([])', expected = object.NULL },
+		{ input = 'push([], 1)', expected = { 1 }},
+		{ input = 'push(1, 1)', expected = object.Error.new("argument to 'push' must be ARRAY, got INTEGER") },
+	}
+	run_vm_tests(t, tests)
+end
+
 return {
 	domain = "vm",
 	test_cases = {
@@ -540,5 +591,6 @@ return {
 		{ name = "calling_functions_with_bindings", func = test_calling_functions_with_bindings },
 		{ name = "calling_functions_with_arguments_and_bindings", func = test_calling_functions_with_arguments_and_bindings },
 		{ name = "calling_functions_with_wrong_arguments", func = test_calling_functions_with_wrong_arguments },
+		{ name = "calling_functions_with_wrong_arguments2", func = test_calling_functions_with_wrong_arguments2 },
 	}
 }

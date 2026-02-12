@@ -147,6 +147,38 @@ local function test_resolve_nested_local (t: testing.T)
 	end
 end
 
+local function fmt_sym (s: symbol_table.Symbol): string
+	return string.format("{ name = %s }", s.name)
+end
+
+local function test_define_resolve_builtins (t: testing.T)
+	local globau = symbol_table.SymbolTable.new()
+	local first_locau = symbol_table.SymbolTable.new_enclosed(globau)
+	local second_locau = symbol_table.SymbolTable.new_enclosed(first_locau)
+	local expected = {
+		symbol_table.Symbol.new("a", symbol_table.BuiltinScope, 0),
+		symbol_table.Symbol.new("c", symbol_table.BuiltinScope, 1),
+		symbol_table.Symbol.new("e", symbol_table.BuiltinScope, 2),
+		symbol_table.Symbol.new("f", symbol_table.BuiltinScope, 3),
+	}
+
+	for i, v in ipairs(expected) do
+		globau:define_builtin(i, v.name)
+	end
+	for _, tab in ipairs({globau, first_locau, second_locau}) do
+		for _, sym in ipairs(expected) do
+			local result, ok = tab:resolve(sym.name)
+			if not ok then
+				t:error("name %s not resolvable", sym.name)
+			else
+				if result ~= sym then
+					t:error("expected %s to resolve to %s, got=%s", sym.name, fmt_sym(sym), fmt_sym(result))
+				end
+			end
+		end
+	end
+end
+
 return {
 	domain = "symbol_table",
 	test_cases = {
@@ -154,5 +186,6 @@ return {
 		{ name = "resolve_global", func = test_resolve_global },
 		{ name = "resolve_local", func = test_resolve_local },
 		{ name = "resolve_nested_local", func = test_resolve_nested_local },
+		{ name = "define_resolve_builtins", func = test_define_resolve_builtins },
 	}
 }

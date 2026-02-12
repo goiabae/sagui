@@ -830,6 +830,49 @@ local function test_let_statement_scopes (t: testing.T)
 	run_compiler_test(t, tests)
 end
 
+local function test_builtins (t: testing.T)
+	local tests: {CompilerTestCase} = {
+		{
+			input = [[
+        len([]);
+        push([], 1);
+      ]],
+			expected_constants = {
+				1,
+			},
+			expected_instructions = {
+					code.Instructions.new(code.make(code.OpGetBuiltin, 0)),
+					code.Instructions.new(code.make(code.OpArray, 0)),
+					code.Instructions.new(code.make(code.OpCall, 1)),
+					code.Instructions.new(code.make(code.OpPop)),
+					code.Instructions.new(code.make(code.OpGetBuiltin, 5)),
+					code.Instructions.new(code.make(code.OpArray, 0)),
+					code.Instructions.new(code.make(code.OpConstant, 0)),
+					code.Instructions.new(code.make(code.OpCall, 2)),
+					code.Instructions.new(code.make(code.OpPop)),
+			}
+		},
+		{
+			input = [[
+        fn() { len([]); }
+      ]],
+			expected_constants = {
+				{
+					code.Instructions.new(code.make(code.OpGetBuiltin, 0)),
+					code.Instructions.new(code.make(code.OpArray, 0)),
+					code.Instructions.new(code.make(code.OpCall, 1)),
+					code.Instructions.new(code.make(code.OpReturnValue)),
+				}
+			},
+			expected_instructions = {
+					code.Instructions.new(code.make(code.OpConstant, 0)),
+					code.Instructions.new(code.make(code.OpPop)),
+			}
+		},
+	}
+	run_compiler_test(t, tests)
+end
+
 return {
 	domain = "compiler",
 	test_cases = {
@@ -846,5 +889,6 @@ return {
 		{ name = "functions_without_return_value", func = test_functions_without_return_value },
 		{ name = "function_calls", func = test_function_calls },
 		{ name = "let_statement_scopes", func = test_let_statement_scopes },
+		{ name = "builtins", func = test_builtins },
 	}
 }

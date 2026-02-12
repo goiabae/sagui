@@ -3,6 +3,7 @@ local ast = require("ast.ast")
 local environment = require("environment")
 local objecti = require("objecti")
 local code = require("code")
+local symbol_table = require("symbol_table")
 
 local type ObjectType = objecti.ObjectType
 local type Object = objecti.Object
@@ -275,6 +276,135 @@ function CompiledFunction.new (instructions: code.Instructions, num_locals: inte
 	}, { __index = CompiledFunction })
 end
 
+local function new_error (format: string, ...): Error
+	return Error.new(string.format(format, ...))
+end
+
+local NULL <const> = Null.new()
+local TRUE <const> = Boolean.new(true)
+local FALSE <const> = Boolean.new(false)
+
+local builtins: {{string, Builtin}} = {
+	{
+		"len",
+		Builtin.new(function (...: Object): Object
+			local args = { ... }
+			if #args ~= 1 then
+				return new_error("wrong number of arguments. got=%d, want=1", #args)
+			end
+			local fst_arg = args[1]
+			if fst_arg is String then
+				return Integer.new(#(fst_arg as String).value)
+			elseif fst_arg is Array then
+				return Integer.new(#(fst_arg as Array).elements)
+			else
+				return new_error("argument to 'len' not supported, got %s", args[1]:type())
+			end
+		end)
+	},
+	{
+		"first",
+		Builtin.new(function (...: Object): Object
+			local args = { ... }
+			if #args ~= 1 then
+				return new_error("wrong number of arguments. got=%d, want=1", #args)
+			end
+			if args[1]:type() ~= ARRAY_OBJ then
+				return new_error("argument to 'first' must be ARRAY, got %s", args[1]:type())
+			end
+			local arr = args[1] as Array
+			if #arr.elements > 0 then
+				return arr.elements[1]
+			else
+				return NULL
+			end
+		end)
+	},
+	{
+		"last",
+		Builtin.new(function (...: Object): Object
+			local args = { ... }
+			if #args ~= 1 then
+				return new_error("wrong number of arguments. got=%d, want=1", #args)
+			end
+			if args[1]:type() ~= ARRAY_OBJ then
+				return new_error("argument to 'last' must be ARRAY, got %s", args[1]:type())
+			end
+			local arr = args[1] as Array
+			local length = #arr.elements
+			if length > 0 then
+				return arr.elements[length]
+			else
+				return NULL
+			end
+		end)
+	},
+	{
+		"rest",
+		Builtin.new(function (...: Object): Object
+			local args = { ... }
+			if #args ~= 1 then
+				return new_error("wrong number of arguments. got=%d, want=1", #args)
+			end
+			if args[1]:type() ~= ARRAY_OBJ then
+				return new_error("argument to 'rest' must be ARRAY, got %s", args[1]:type())
+			end
+			local arr = args[1] as Array
+			local length = #arr.elements
+			if length > 0 then
+				local new_elements = {}
+				for i = 2, length do
+					table.insert(new_elements, arr.elements[i])
+				end
+				return Array.new(new_elements)
+			else
+				return NULL
+			end
+		end)
+	},
+	{
+		"puts",
+		Builtin.new(function (...: Object): Object
+			local args = { ... }
+			for i = 1, #args do
+				local a = args[i]
+				print(a:inspect())
+			end
+			return NULL
+		end)
+	},
+	{
+		"push",
+		Builtin.new(function (...: Object): Object
+			local args = { ... }
+			if #args ~= 2 then
+				return new_error("wrong number of arguments. got=%d, want=2", #args)
+			end
+			if args[1]:type() ~= ARRAY_OBJ then
+				return new_error("argument to 'push' must be ARRAY, got %s", args[1]:type())
+			end
+			local arr = args[1] as Array
+			local length = #arr.elements
+			local new_elements = {}
+			for i = 1, length do
+				table.insert(new_elements, arr.elements[i])
+			end
+			table.insert(new_elements, args[2])
+			symbol_table.Symbol.new("a", symbol_table.BuiltinScope, 0)
+			return Array.new(new_elements)
+		end)
+	},
+}
+
+local function get_builtin_by_name (name: string): Builtin | nil
+	for _, def in ipairs(builtins) do
+		if def[1] == name then
+			return def[2]
+		end
+	end
+	return nil
+end
+
 local object <const> = {
 	Object = Object,
 	ObjectType = ObjectType,
@@ -304,6 +434,12 @@ local object <const> = {
 	ARRAY_OBJ = ARRAY_OBJ,
 	HASH_OBJ = HASH_OBJ,
 	COMPILED_FUNCTION_OBJ = COMPILED_FUNCTION_OBJ,
+
+	builtins = builtins,
+	get_builtin_by_name = get_builtin_by_name,
+	NULL = NULL,
+	TRUE = TRUE,
+	FALSE = FALSE,
 }
 
 return object

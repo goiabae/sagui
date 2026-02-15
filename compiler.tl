@@ -120,7 +120,12 @@ function compiler.Compiler:load_symbol (symbol: symbol_table.Symbol)
 	elseif symbol.scope == symbol_table.LocalScope then
 		self:emit(code.OpGetLocal, symbol.index)
 	elseif symbol.scope == symbol_table.BuiltinScope then
-		self:emit(code.OpGetBuiltin, symbol.index)
+		-- print(string.format("emittting builtin (name: %s, index: %d)", symbol.name, symbol.index))
+		self:emit(code.OpGetBuiltin, symbol.index-1)
+	elseif symbol.scope == symbol_table.FreeScope then
+		self:emit(code.OpGetFree, symbol.index)
+	elseif symbol.scope == symbol_table.FunctionScope then
+		self:emit(code.OpCurrentClosure)
 	end
 end
 
@@ -243,11 +248,11 @@ function compiler.Compiler:compile (node: ast.Node): string
 		end
 	elseif node is ast.LetStatement then
 		local let_stmt = node as ast.LetStatement
+		local symbol = self.symbol_table:define(let_stmt.name.value)
 		local err = self:compile(let_stmt.value)
 		if err ~= nil then
 			return err
 		end
-		local symbol = self.symbol_table:define(let_stmt.name.value)
 		if symbol.scope == symbol_table.GlobalScope then
 			self:emit(code.OpSetGlobal, symbol.index)
 		else
@@ -306,6 +311,9 @@ function compiler.Compiler:compile (node: ast.Node): string
 	elseif node is ast.FunctionLiteral then
 		local func_lit = node as ast.FunctionLiteral
 		self:enter_scope()
+		if func_lit.name ~= "" then
+			self.symbol_table:define_function_name(func_lit.name)
+		end
 		for _, p in ipairs(func_lit.parameters) do
 			self.symbol_table:define(p.value)
 		end
@@ -319,10 +327,15 @@ function compiler.Compiler:compile (node: ast.Node): string
 		if not self:last_instruction_is(code.OpReturnValue) then
 			self:emit(code.OpReturn)
 		end
+		local free_symbols = self.symbol_table.free_symbols
 		local num_locals = self.symbol_table.num_definitions
 		local instructions = self:leave_scope()
+		for _, s in ipairs(free_symbols) do
+			self:load_symbol(s)
+		end
 		local compiled_fn = object.CompiledFunction.new(instructions, num_locals, #func_lit.parameters)
-		self:emit(code.OpConstant, self:add_constant(compiled_fn))
+		local fn_index = self:add_constant(compiled_fn)
+		self:emit(code.OpClosure, fn_index, #free_symbols)
 	elseif node is ast.ReturnStatement then
 		local ret = node as ast.ReturnStatement
 		local err = self:compile(ret.return_value)
@@ -363,7 +376,8 @@ end
 function compiler.new (): compiler.Compiler
 	local symtab = symbol_table.SymbolTable.new()
 	for i, v in ipairs(object.builtins) do
-		symtab:define_builtin(i-1, v[1])
+		-- print(string.format("defining builtin (name: %s, index: %d)", v[1], i))
+		symtab:define_builtin(i, v[1])
 	end
 	return setmetatable({
 		constants = {},

@@ -317,16 +317,18 @@ local record FunctionLiteral is Expression
 	token: token.Token
 	parameters: {Identifier}
 	body: BlockStatement
+	name: string
 end
 
 function FunctionLiteral:expression_node() end
 function FunctionLiteral:token_literal(): string return self.token.literal end
-function FunctionLiteral.new(tk: token.Token, parameters: {Identifier}, body: BlockStatement): FunctionLiteral
+function FunctionLiteral.new(tk: token.Token, parameters: {Identifier}, body: BlockStatement, name: string): FunctionLiteral
 	return setmetatable({
 		kind = "function_literal",
 		token = tk,
 		parameters = parameters,
 		body = body,
+		name = name,
 	}, { __index = FunctionLiteral })
 end
 
@@ -335,7 +337,8 @@ function FunctionLiteral:string(): string
 	for _, p in ipairs(self.parameters) do
 		table.insert(params, p:string())
 	end
-	return self:token_literal() .. "(" .. table.concat(params, ", ") .. ") " .. self.body:string()
+	local name = self.name ~= "" and string.format("<%s>", self.name) or ""
+	return self:token_literal() .. name .. "(" .. table.concat(params, ", ") .. ") " .. self.body:string()
 end
 
 local record CallExpression is Expression

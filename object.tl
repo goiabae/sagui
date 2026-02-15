@@ -19,6 +19,7 @@ local BUILTIN_OBJ <const> = "BUILTIN"
 local ARRAY_OBJ <const> = "ARRAY"
 local HASH_OBJ <const> = "HASH"
 local COMPILED_FUNCTION_OBJ <const> = "COMPILED_FUNCTION_OBJ"
+local CLOSURE_OBJ <const> = "CLOSURE"
 
 local type BuiltinFunction = function (...: Object): Object
 
@@ -276,6 +277,26 @@ function CompiledFunction.new (instructions: code.Instructions, num_locals: inte
 	}, { __index = CompiledFunction })
 end
 
+local record Closure is Object
+	where self.kind == "CLOSURE"
+	kind: string
+	fn: CompiledFunction
+	free: {Object}
+end
+
+function Closure:type (): ObjectType return CLOSURE_OBJ end
+function Closure:inspect (): string
+	return string.format("Closure")
+end
+function Closure.new (fn: CompiledFunction, free: {Object}): Closure
+	return setmetatable({
+		kind = CLOSURE_OBJ,
+		fn = fn,
+		free = free,
+	}, { __index = Closure })
+end
+
+
 local function new_error (format: string, ...): Error
 	return Error.new(string.format(format, ...))
 end
@@ -288,6 +309,7 @@ local builtins: {{string, Builtin}} = {
 	{
 		"len",
 		Builtin.new(function (...: Object): Object
+			-- print("executing len")
 			local args = { ... }
 			if #args ~= 1 then
 				return new_error("wrong number of arguments. got=%d, want=1", #args)
@@ -305,6 +327,7 @@ local builtins: {{string, Builtin}} = {
 	{
 		"first",
 		Builtin.new(function (...: Object): Object
+			-- print("executing first")
 			local args = { ... }
 			if #args ~= 1 then
 				return new_error("wrong number of arguments. got=%d, want=1", #args)
@@ -323,6 +346,7 @@ local builtins: {{string, Builtin}} = {
 	{
 		"last",
 		Builtin.new(function (...: Object): Object
+			-- print("executing last")
 			local args = { ... }
 			if #args ~= 1 then
 				return new_error("wrong number of arguments. got=%d, want=1", #args)
@@ -342,6 +366,7 @@ local builtins: {{string, Builtin}} = {
 	{
 		"rest",
 		Builtin.new(function (...: Object): Object
+			--print("executing rest")
 			local args = { ... }
 			if #args ~= 1 then
 				return new_error("wrong number of arguments. got=%d, want=1", #args)
@@ -365,6 +390,7 @@ local builtins: {{string, Builtin}} = {
 	{
 		"puts",
 		Builtin.new(function (...: Object): Object
+			--print("executing puts")
 			local args = { ... }
 			for i = 1, #args do
 				local a = args[i]
@@ -376,6 +402,7 @@ local builtins: {{string, Builtin}} = {
 	{
 		"push",
 		Builtin.new(function (...: Object): Object
+			--print("executing push")
 			local args = { ... }
 			if #args ~= 2 then
 				return new_error("wrong number of arguments. got=%d, want=2", #args)
@@ -422,6 +449,7 @@ local object <const> = {
 	HashKey = HashKey,
 	Hashable = Hashable,
 	CompiledFunction = CompiledFunction,
+	Closure = Closure,
 
 	INTEGER_OBJ = INTEGER_OBJ,
 	BOOLEAN_OBJ = BOOLEAN_OBJ,
@@ -434,6 +462,7 @@ local object <const> = {
 	ARRAY_OBJ = ARRAY_OBJ,
 	HASH_OBJ = HASH_OBJ,
 	COMPILED_FUNCTION_OBJ = COMPILED_FUNCTION_OBJ,
+	CLOSURE_OBJ = CLOSURE_OBJ,
 
 	builtins = builtins,
 	get_builtin_by_name = get_builtin_by_name,

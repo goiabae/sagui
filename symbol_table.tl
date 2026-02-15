@@ -4,6 +4,8 @@ local type SymbolScope = string
 local GlobalScope <const>: SymbolScope = "GLOBAL"
 local LocalScope <const>: SymbolScope = "LOCAL"
 local BuiltinScope <const>: SymbolScope = "BUILTIN"
+local FreeScope <const>: SymbolScope = "FREE"
+local FunctionScope <const>: SymbolScope = "FUNCTION"
 
 local record Symbol
 	name: string
@@ -46,10 +48,19 @@ local record SymbolTable
 	outer: SymbolTable
 	store: { string:Symbol }
 	num_definitions: integer
+	free_symbols: {Symbol}
 	new: function (): SymbolTable
 	define: function (self, string): Symbol
 	resolve: function (self, string): (Symbol, boolean)
 	define_builtin: function (self, integer, string): Symbol
+	define_free: function (self, Symbol): Symbol
+end
+
+function SymbolTable:define_free (original: Symbol): Symbol
+	table.insert(self.free_symbols, original)
+	local symbol = Symbol.new(original.name, FreeScope, #self.free_symbols - 1)
+	self.store[original.name] = symbol
+	return symbol
 end
 
 function SymbolTable.new (): SymbolTable
@@ -57,6 +68,7 @@ function SymbolTable.new (): SymbolTable
 		outer = nil,
 		store = {},
 		num_definitions = 0,
+		free_symbols = {},
 	}, { __index = SymbolTable })
 end
 
@@ -75,16 +87,55 @@ function SymbolTable:define (name: string): Symbol
 end
 
 function SymbolTable:resolve (name: string): (Symbol, boolean)
-	local obj = self.store[name]
-	if obj == nil and self.outer ~= nil then
-		return self.outer:resolve(name)
+	local obj: Symbol
+	local ok: boolean
+
+	obj, ok = self.store[name], self.store[name] ~= nil
+
+	if ok then
+		return obj, ok
 	else
-		return obj, obj ~= nil
+		if self.outer == nil then
+			return nil, false
+		else
+			obj, ok = self.outer:resolve(name)
+			if not ok then
+				return obj, ok
+			else
+				if obj.scope == GlobalScope or obj.scope == BuiltinScope then
+					return obj, ok
+				else
+					local free = self:define_free(obj)
+					return free, true
+				end
+			end
+		end
 	end
+
+	-- local obj, ok = self.store[name], self.store[name] == nil
+	-- if (not ok) and self.outer ~= nil then
+	-- 	obj, ok = self.outer:resolve(name)
+	-- 	if not ok then
+	-- 		return obj, ok
+	-- 	end
+	-- 	if obj.scope == GlobalScope or obj.scope == BuiltinScope then
+	-- 		return obj, ok
+	-- 	end
+	-- 	local free = self:define_free(obj)
+	-- 	return free, true
+	-- else
+	-- 	return obj, ok
+	-- end
 end
 
 function SymbolTable:define_builtin (index: integer, name: string): Symbol
 	local symbol = Symbol.new(name, BuiltinScope, index)
+	self.store[name] = symbol
+	return symbol
+end
+
+function SymbolTable:define_function_name (name: string): Symbol
+	local symbol = Symbol.new(name, FunctionScope, 0)
 	self.store[name] = symbol
 	return symbol
 end
@@ -96,4 +147,6 @@ return {
 	BuiltinScope = BuiltinScope,
 	Symbol = Symbol,
 	SymbolTable = SymbolTable,
+	FreeScope = FreeScope,
+	FunctionScope = FunctionScope,
 }

@@ -544,7 +544,24 @@ local function test_functions (t: testing.T)
 				},
 			},
 			expected_instructions = {
-					code.Instructions.new(code.make(code.OpConstant, 2)),
+					code.Instructions.new(code.make(code.OpClosure, 2, 0)),
+					code.Instructions.new(code.make(code.OpPop)),
+			}
+		},
+		{
+			input = "fn() { 5 + 10 }",
+			expected_constants = {
+				5,
+				10,
+				{
+					code.Instructions.new(code.make(code.OpConstant, 0)),
+					code.Instructions.new(code.make(code.OpConstant, 1)),
+					code.Instructions.new(code.make(code.OpAdd)),
+					code.Instructions.new(code.make(code.OpReturnValue)),
+				},
+			},
+			expected_instructions = {
+					code.Instructions.new(code.make(code.OpClosure, 2, 0)),
 					code.Instructions.new(code.make(code.OpPop)),
 			}
 		},
@@ -561,7 +578,7 @@ local function test_functions (t: testing.T)
 				},
 			},
 			expected_instructions = {
-					code.Instructions.new(code.make(code.OpConstant, 2)),
+					code.Instructions.new(code.make(code.OpClosure, 2, 0)),
 					code.Instructions.new(code.make(code.OpPop)),
 			}
 		}
@@ -579,7 +596,7 @@ local function test_functions_without_return_value (t: testing.T)
 				},
 			},
 			expected_instructions = {
-					code.Instructions.new(code.make(code.OpConstant, 0)),
+					code.Instructions.new(code.make(code.OpClosure, 0, 0)),
 					code.Instructions.new(code.make(code.OpPop)),
 			}
 		}
@@ -612,7 +629,7 @@ local function test_function_calls (t: testing.T)
 				},
 			},
 			expected_instructions = {
-					code.Instructions.new(code.make(code.OpConstant, 1)), -- The compiled function
+					code.Instructions.new(code.make(code.OpClosure, 1, 0)), -- The compiled function
 					code.Instructions.new(code.make(code.OpCall, 0)),
 					code.Instructions.new(code.make(code.OpPop)),
 			}
@@ -627,7 +644,7 @@ local function test_function_calls (t: testing.T)
 				},
 			},
 			expected_instructions = {
-					code.Instructions.new(code.make(code.OpConstant, 1)), -- The compiled function
+					code.Instructions.new(code.make(code.OpClosure, 1, 0)), -- The compiled function
 					code.Instructions.new(code.make(code.OpSetGlobal, 0)),
 					code.Instructions.new(code.make(code.OpGetGlobal, 0)),
 					code.Instructions.new(code.make(code.OpCall, 0)),
@@ -643,7 +660,7 @@ local function test_function_calls (t: testing.T)
 				24,
 			},
 			expected_instructions = {
-					code.Instructions.new(code.make(code.OpConstant, 0)),
+					code.Instructions.new(code.make(code.OpClosure, 0, 0)),
 					code.Instructions.new(code.make(code.OpSetGlobal, 0)),
 					code.Instructions.new(code.make(code.OpGetGlobal, 0)),
 					code.Instructions.new(code.make(code.OpConstant, 1)),
@@ -662,7 +679,7 @@ local function test_function_calls (t: testing.T)
 				26,
 			},
 			expected_instructions = {
-					code.Instructions.new(code.make(code.OpConstant, 0)),
+					code.Instructions.new(code.make(code.OpClosure, 0, 0)),
 					code.Instructions.new(code.make(code.OpSetGlobal, 0)),
 					code.Instructions.new(code.make(code.OpGetGlobal, 0)),
 					code.Instructions.new(code.make(code.OpConstant, 1)),
@@ -682,7 +699,7 @@ local function test_function_calls (t: testing.T)
 				24,
 			},
 			expected_instructions = {
-					code.Instructions.new(code.make(code.OpConstant, 0)),
+					code.Instructions.new(code.make(code.OpClosure, 0, 0)),
 					code.Instructions.new(code.make(code.OpSetGlobal, 0)),
 					code.Instructions.new(code.make(code.OpGetGlobal, 0)),
 					code.Instructions.new(code.make(code.OpConstant, 1)),
@@ -709,7 +726,7 @@ local function test_function_calls (t: testing.T)
 				26,
 			},
 			expected_instructions = {
-					code.Instructions.new(code.make(code.OpConstant, 0)),
+					code.Instructions.new(code.make(code.OpClosure, 0, 0)),
 					code.Instructions.new(code.make(code.OpSetGlobal, 0)),
 					code.Instructions.new(code.make(code.OpGetGlobal, 0)),
 					code.Instructions.new(code.make(code.OpConstant, 1)),
@@ -774,7 +791,7 @@ local function test_let_statement_scopes (t: testing.T)
 			expected_instructions = {
 					code.Instructions.new(code.make(code.OpConstant, 0)),
 					code.Instructions.new(code.make(code.OpSetGlobal, 0)),
-					code.Instructions.new(code.make(code.OpConstant, 1)),
+					code.Instructions.new(code.make(code.OpClosure, 1, 0)),
 					code.Instructions.new(code.make(code.OpPop)),
 			}
 		},
@@ -795,7 +812,7 @@ local function test_let_statement_scopes (t: testing.T)
 				},
 			},
 			expected_instructions = {
-					code.Instructions.new(code.make(code.OpConstant, 1)),
+					code.Instructions.new(code.make(code.OpClosure, 1, 0)),
 					code.Instructions.new(code.make(code.OpPop)),
 			}
 		},
@@ -822,7 +839,7 @@ local function test_let_statement_scopes (t: testing.T)
 				},
 			},
 			expected_instructions = {
-					code.Instructions.new(code.make(code.OpConstant, 2)),
+					code.Instructions.new(code.make(code.OpClosure, 2, 0)),
 					code.Instructions.new(code.make(code.OpPop)),
 			}
 		},
@@ -865,12 +882,200 @@ local function test_builtins (t: testing.T)
 				}
 			},
 			expected_instructions = {
-					code.Instructions.new(code.make(code.OpConstant, 0)),
+					code.Instructions.new(code.make(code.OpClosure, 0, 0)),
 					code.Instructions.new(code.make(code.OpPop)),
 			}
 		},
 	}
 	run_compiler_test(t, tests)
+end
+
+local function test_closures (t: testing.T)
+	local tests: {CompilerTestCase} = {
+		{
+			input = [[
+        fn(a) {
+          fn(b) {
+            a + b
+          }
+        }
+      ]],
+			expected_constants = {
+				{
+					code.Instructions.new(code.make(code.OpGetFree, 0)),
+					code.Instructions.new(code.make(code.OpGetLocal, 0)),
+					code.Instructions.new(code.make(code.OpAdd)),
+					code.Instructions.new(code.make(code.OpReturnValue)),
+				},
+				{
+					code.Instructions.new(code.make(code.OpGetLocal, 0)),
+					code.Instructions.new(code.make(code.OpClosure, 0, 1)),
+					code.Instructions.new(code.make(code.OpReturnValue)),
+				},
+			},
+			expected_instructions = {
+					code.Instructions.new(code.make(code.OpClosure, 1, 0)),
+					code.Instructions.new(code.make(code.OpPop)),
+			}
+		},
+		{
+			input = [[
+        fn(a) {
+          fn(b) {
+            fn(c) {
+              a + b + c
+            }
+          }
+        }
+      ]],
+			expected_constants = {
+				{
+					code.Instructions.new(code.make(code.OpGetFree, 0)),
+					code.Instructions.new(code.make(code.OpGetFree, 1)),
+					code.Instructions.new(code.make(code.OpAdd)),
+					code.Instructions.new(code.make(code.OpGetLocal, 0)),
+					code.Instructions.new(code.make(code.OpAdd)),
+					code.Instructions.new(code.make(code.OpReturnValue)),
+				},
+				{
+					code.Instructions.new(code.make(code.OpGetFree, 0)),
+					code.Instructions.new(code.make(code.OpGetLocal, 0)),
+					code.Instructions.new(code.make(code.OpClosure, 0, 2)),
+					code.Instructions.new(code.make(code.OpReturnValue)),
+				},
+				{
+					code.Instructions.new(code.make(code.OpGetLocal, 0)),
+					code.Instructions.new(code.make(code.OpClosure, 1, 1)),
+					code.Instructions.new(code.make(code.OpReturnValue)),
+				},
+			},
+			expected_instructions = {
+					code.Instructions.new(code.make(code.OpClosure, 2, 0)),
+					code.Instructions.new(code.make(code.OpPop)),
+			}
+		},
+		-- {
+		-- 	input = [[
+    --    let global = 55;
+    --     fn() {
+    --       let a = 66;
+    --       fn() {
+    --         let b = 77;
+    --         fn() {
+    --           let c = 88;
+    --           global + a + b + c;
+    --         }
+    --       }
+    --     }
+    --   ]],
+		-- 	expected_constants = {
+		-- 		55,
+		-- 		66,
+		-- 		77,
+		-- 		88,
+		-- 		{
+		-- 			code.Instructions.new(code.make(code.OpConstant, 3)),
+		-- 			code.Instructions.new(code.make(code.OpSetLocal, 0)),
+		-- 			code.Instructions.new(code.make(code.OpGetLocal, 0)),
+		-- 			code.Instructions.new(code.make(code.OpGetFree, 0)),
+		-- 			code.Instructions.new(code.make(code.OpAdd)),
+		-- 			code.Instructions.new(code.make(code.OpGetFree, 1)),
+		-- 			code.Instructions.new(code.make(code.OpAdd)),
+		-- 			code.Instructions.new(code.make(code.OpGetLocal, 0)),
+		-- 			code.Instructions.new(code.make(code.OpAdd)),
+		-- 			code.Instructions.new(code.make(code.OpReturnValue)),
+		-- 		},
+		-- 		{
+		-- 			code.Instructions.new(code.make(code.OpConstant, 2)),
+		-- 			code.Instructions.new(code.make(code.OpSetLocal, 0)),
+		-- 			code.Instructions.new(code.make(code.OpGetFree, 0)),
+		-- 			code.Instructions.new(code.make(code.OpClosure, 5, 1)),
+		-- 			code.Instructions.new(code.make(code.OpReturnValue)),
+		-- 		},
+		-- 		{
+		-- 			code.Instructions.new(code.make(code.OpConstant, 1)),
+		-- 			code.Instructions.new(code.make(code.OpSetLocal, 0)),
+		-- 			code.Instructions.new(code.make(code.OpGetLocal, 0)),
+		-- 			code.Instructions.new(code.make(code.OpClosure, 5, 1)),
+		-- 			code.Instructions.new(code.make(code.OpReturnValue)),
+		-- 		},
+		-- 	},
+		-- 	expected_instructions = {
+		-- 			code.Instructions.new(code.make(code.OpConstant, 0)),
+		-- 			code.Instructions.new(code.make(code.OpSetGlobal, 0)),
+		-- 			code.Instructions.new(code.make(code.OpClosure, 6, 0)),
+		-- 			code.Instructions.new(code.make(code.OpPop)),
+		-- 	}
+		-- },
+	}
+	run_compiler_test(t, tests)
+end
+
+local function test_recursive_functions (t: testing.T)
+	local tests: {CompilerTestCase} = {
+		{
+			input = [[
+        let countDown = fn(x) { countDown(x - 1); };
+        countDown(1);
+      ]],
+			expected_constants = {
+				1,
+				{
+					code.Instructions.new(code.make(code.OpCurrentClosure)),
+					code.Instructions.new(code.make(code.OpGetLocal, 0)),
+					code.Instructions.new(code.make(code.OpConstant, 0)),
+					code.Instructions.new(code.make(code.OpSub)),
+					code.Instructions.new(code.make(code.OpCall, 1)),
+					code.Instructions.new(code.make(code.OpReturnValue)),
+				},
+				1,
+			},
+			expected_instructions = {
+					code.Instructions.new(code.make(code.OpClosure, 1, 0)),
+					code.Instructions.new(code.make(code.OpSetGlobal, 0)),
+					code.Instructions.new(code.make(code.OpGetGlobal, 0)),
+					code.Instructions.new(code.make(code.OpConstant, 2)),
+					code.Instructions.new(code.make(code.OpCall, 1)),
+					code.Instructions.new(code.make(code.OpPop)),
+			}
+		},
+		{
+			input = [[
+        let wrapper = fn() {
+          let countDown = fn(x) { countDown(x - 1); };
+          countDown(1);
+        };
+        wrapper();
+      ]],
+			expected_constants = {
+				1,
+				{
+					code.Instructions.new(code.make(code.OpCurrentClosure)),
+					code.Instructions.new(code.make(code.OpGetLocal, 0)),
+					code.Instructions.new(code.make(code.OpConstant, 0)),
+					code.Instructions.new(code.make(code.OpSub)),
+					code.Instructions.new(code.make(code.OpCall, 1)),
+					code.Instructions.new(code.make(code.OpReturnValue)),
+				},
+				1,
+				{
+					code.Instructions.new(code.make(code.OpClosure, 1, 0)),
+					code.Instructions.new(code.make(code.OpSetLocal, 0)),
+					code.Instructions.new(code.make(code.OpGetLocal, 0)),
+					code.Instructions.new(code.make(code.OpConstant, 2)),
+					code.Instructions.new(code.make(code.OpCall, 1)),
+					code.Instructions.new(code.make(code.OpReturnValue)),
+				},
+			},
+			expected_instructions = {
+					code.Instructions.new(code.make(code.OpClosure, 3, 0)),
+					code.Instructions.new(code.make(code.OpSetGlobal, 0)),
+					code.Instructions.new(code.make(code.OpGetGlobal, 0)),
+					code.Instructions.new(code.make(code.OpCall, 0)),
+					code.Instructions.new(code.make(code.OpPop)),
+			}
+		},
+	}
 end
 
 return {
@@ -890,5 +1095,7 @@ return {
 		{ name = "function_calls", func = test_function_calls },
 		{ name = "let_statement_scopes", func = test_let_statement_scopes },
 		{ name = "builtins", func = test_builtins },
+		{ name = "closures", func = test_closures },
+		{ name = "recursive_functions", func = test_recursive_functions },
 	}
 }

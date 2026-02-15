@@ -21,10 +21,10 @@ end
 
 local record vm
 	record Frame
-		fn: object.CompiledFunction
+		cl: object.Closure
 		ip: integer
 		base_pointer: integer
-		new_frame: function (object.CompiledFunction, integer): Frame
+		new_frame: function (object.Closure, integer): Frame
 		instructions: function (self): code.Instructions
 		ip_add: function (self, integer)
 	end
@@ -73,16 +73,16 @@ end
 local frame_mt = {
 	__index = vm.Frame
 }
-function vm.Frame.new_frame (fn: object.CompiledFunction, base_pointer: integer): vm.Frame
+function vm.Frame.new_frame (cl: object.Closure, base_pointer: integer): vm.Frame
 	return setmetatable({
-		fn = fn,
+		cl = cl,
 		ip = -1,
 		base_pointer = base_pointer,
 	} as vm.Frame, frame_mt)
 end
 
 function vm.Frame:instructions (): code.Instructions
-	return self.fn.instructions
+	return self.cl.fn.instructions
 end
 
 function vm.Frame:ip_add (n: integer)
@@ -263,13 +263,13 @@ function vm.VM:execute_index_expression (left: object.Object, index: object.Obje
 	end
 end
 
-function vm.VM:call_function (fn: object.CompiledFunction, num_args: integer): string
-	if num_args ~= fn.num_parameters then
-		return string.format("wrong number of arguments: want=%d, got=%d", fn.num_parameters, num_args)
+function vm.VM:call_closure (cl: object.Closure, num_args: integer): string
+	if num_args ~= cl.fn.num_parameters then
+		return string.format("wrong number of arguments: want=%d, got=%d", cl.fn.num_parameters, num_args)
 	end
-	local frame = vm.Frame.new_frame(fn, self.sp-num_args)
+	local frame = vm.Frame.new_frame(cl, self.sp-num_args)
 	self:push_frame(frame)
-	self.sp = frame.base_pointer + fn.num_locals
+	self.sp = frame.base_pointer + cl.fn.num_locals
 	return nil
 end
 
@@ -294,14 +294,38 @@ function vm.VM:call_builtin (builtin: object.Builtin, num_args: integer): string
 end
 
 function vm.VM:execute_call (num_args: integer): string
+	local i = self.sp-1-num_args+1
+	if i > #self.stack or i < 1 then
+		return string.format("stack index out of bounds")
+	end
 	local callee = self.stack[self.sp-1-num_args+1]
-	if callee is object.CompiledFunction then
-		return self:call_function(callee, num_args)
+	if callee == nil then
+		return "callee was nil"
+	end
+	if callee is object.Closure then
+		return self:call_closure(callee, num_args)
 	elseif callee is object.Builtin then
 		return self:call_builtin(callee, num_args)
 	else
-		return string.format("calling non-function and non-builtin")
+		return string.format("calling non-closure and non-builtin")
 	end
+end
+
+function vm.VM:push_closure (const_index: integer, num_free: integer): string
+	-- FIXME: off by one
+	local constant = self.constants[const_index + 1]
+	if not (constant is object.CompiledFunction) then
+		return string.format("not a function")
+	end
+	local fn = constant as object.CompiledFunction
+	local free: {object.Object} = {}
+	-- FIXME: off by one
+	for i = 0, num_free-1 do
+		free[i+1] = self.stack[self.sp-num_free+i+1]
+	end
+	self.sp = self.sp - num_free
+	local closure = object.Closure.new(fn, free)
+	return self:push(closure)
 end
 
 function vm.VM:run(): string
@@ -448,14 +472,34 @@ function vm.VM:run(): string
 		elseif op == code.OpGetBuiltin then
 			local builtin_index = code.read_u8(ins.bytes, ip+1+1)
 			self:current_frame():ip_add(1)
-			local definition = object.builtins[builtin_index]
+			-- FIXME: off by one
+			local definition = object.builtins[builtin_index+1]
 			if definition == nil then
-				return "definition was nil"
+				return string.format("definition was nil: (builtin_index: %d)", builtin_index)
 			end
 			local err = self:push(definition[2])
 			if err ~= nil then
 				return err
 			end
+		elseif op == code.OpClosure then
+			local const_index = code.read_u16(ins.bytes, ip+1+1)
+			local num_free = code.read_u8(ins.bytes, ip+3+1)
+			self:current_frame():ip_add(3)
+			local err = self:push_closure(const_index, num_free)
+			if err ~= nil then
+				return err
+			end
+		elseif op == code.OpGetFree then
+			local free_index = code.read_u8(ins.bytes, ip+1+1)
+			self:current_frame():ip_add(1)
+			local current_closure = self:current_frame().cl
+			-- FIXME: off by one
+			local err = self:push(current_closure.free[free_index+1])
+			if err ~= nil then return err end
+		elseif op == code.OpCurrentClosure then
+			local current_closure = self:current_frame().cl
+			local err = self:push(current_closure)
+			if err ~= nil then return err end
 		end
 	end
 	return nil
@@ -478,7 +522,8 @@ end
 
 function vm.new (bytecode: compiler.Bytecode): vm.VM
 	local main_fn = object.CompiledFunction.new(bytecode.instructions, 0, 0)
-	local main_frame = vm.Frame.new_frame(main_fn, 0)
+	local main_closure = object.Closure.new(main_fn, {})
+	local main_frame = vm.Frame.new_frame(main_closure, 0)
 	local frames: {vm.Frame} = {}
 	frames[0+1] = main_frame
 	return setmetatable({

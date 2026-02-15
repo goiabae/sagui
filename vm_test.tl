@@ -170,6 +170,17 @@ local function run_vm_tests (t: testing.T, tests: {VMTestCase})
 				t:fatal_fail("copiler error: %s", err)
 			end
 		end
+		-- for i, constant in ipairs(comp:bytecode().constants) do
+		-- 	print(string.format("CONSTANT %d %s:", i, constant))
+		-- 	if constant is object.CompiledFunction then
+		-- 		local fn = constant as object.CompiledFunction
+		-- 		print(string.format(" Instruction:\n%s", fn.instructions:string()))
+		-- 	elseif constant is object.Integer then
+		-- 		local int = constant as object.Integer
+		-- 		print(string.format(" Value: %d\n", int.value))
+		-- 	end
+		-- 	print()
+		-- end
 		local vm_ = vm.new(comp:bytecode())
 		do
 			local err = vm_:run()
@@ -573,6 +584,160 @@ local function test_calling_functions_with_wrong_arguments2 (t: testing.T)
 	run_vm_tests(t, tests)
 end
 
+local function test_closures (t: testing.T)
+	local tests: {VMTestCase} = {
+		{
+			input = [[
+        let newClosure = fn(a) {
+          fn() { a; };
+        };
+        let closure = newClosure(99);
+        closure();
+      ]],
+			expected = 99,
+		},
+		{
+			input = [[
+        let newAdder = fn(a, b) {
+          fn(c) { a + b + c; };
+        };
+        let adder = newAdder(1, 2);
+        adder(8);
+      ]],
+			expected = 11,
+		},
+		{
+			input = [[
+        let newAdder = fn(a, b) {
+          let c = a + b;
+          fn(d) { c + d; };
+        };
+        let adder = newAdder(1, 2);
+        adder(8);
+      ]],
+			expected = 11,
+		},
+		{
+			input = [[
+        let newAdderOuter = fn(a, b) {
+          let c = a + b;
+          fn(d) {
+            let e = d + c;
+            fn(f) { e + f; };
+          };
+        };
+        let newAdderInner = newAdderOuter(1, 2);
+        let adder = newAdderInner(3);
+        adder(8);
+      ]],
+			expected = 14,
+		},
+		{
+			input = [[
+        let a = 1;
+        let newAdderOuter = fn(b) {
+          fn(c) {
+            fn(d) {
+              a + b + c + d;
+            };
+          };
+        };
+        let newAdderInner = newAdderOuter(2);
+        let adder = newAdderInner(3);
+        adder(8);
+      ]],
+			expected = 14,
+		},
+		{
+			input = [[
+        let newClosure = fn(a, b) {
+          let one = fn() { a; };
+          let two = fn() { b; };
+          fn() { one() + two(); };
+        };
+        let closure = newClosure(9, 90);
+        closure();
+      ]],
+			expected = 99,
+		},
+	}
+	run_vm_tests(t, tests)
+end
+
+local function test_recursive_functions (t: testing.T)
+	local tests: {VMTestCase} = {
+		{
+			input = [[
+        let countDown = fn(x) {
+          if (x == 0) {
+            return 0;
+          } else {
+            countDown(x - 1);
+          }
+        };
+        countDown(1);
+      ]],
+			expected = 0,
+		},
+		{
+			input = [[
+        let countDown = fn(x) {
+          if (x == 0) {
+            return 0;
+          } else {
+            countDown(x - 1);
+          }
+        };
+        let wrapper = fn() {
+          countDown(1);
+        };
+        wrapper();
+      ]],
+			expected = 0,
+		},
+		{
+			input = [[
+        let wrapper = fn() {
+          let countDown = fn(x) {
+            if (x == 0) {
+              return 0;
+            } else {
+              countDown(x - 1);
+            }
+          };
+          countDown(1);
+        };
+        wrapper();
+      ]],
+			expected = 0,
+		},
+	}
+	run_vm_tests(t, tests)
+end
+
+local function test_recursive_fibonacci (t: testing.T)
+	local tests: {VMTestCase} = {
+		{
+			input = [[
+        let fibonacci = fn(x) {
+          if (x == 0) {
+            return 0;
+          } else {
+            if (x == 1) {
+              return 1;
+            } else {
+              fibonacci(x - 1) + fibonacci(x - 2);
+            }
+          }
+        };
+        fibonacci(15);
+      ]],
+			expected = 610,
+		},
+	}
+	run_vm_tests(t, tests)
+end
+
 return {
 	domain = "vm",
 	test_cases = {
@@ -592,5 +757,8 @@ return {
 		{ name = "calling_functions_with_arguments_and_bindings", func = test_calling_functions_with_arguments_and_bindings },
 		{ name = "calling_functions_with_wrong_arguments", func = test_calling_functions_with_wrong_arguments },
 		{ name = "calling_functions_with_wrong_arguments2", func = test_calling_functions_with_wrong_arguments2 },
+		{ name = "closures", func = test_closures },
+		{ name = "recursive_functions", func = test_recursive_functions },
+		{ name = "recursive_fibonacci", func = test_recursive_fibonacci },
 	}
 }

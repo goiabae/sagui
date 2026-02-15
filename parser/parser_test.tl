@@ -196,7 +196,7 @@ local function program_checker (cks: { check_node_fn }): check_node_fn
 	end
 end
 
-local function function_literal_checker (params: {string}, body_ck: check_node_fn): check_node_fn
+local function function_literal_checker (params: {string}, body_ck: check_node_fn, name?: string): check_node_fn
 	return function (t: testing.T, node: ast.Node): boolean
 		if not node then
 			t:fatal_fail("node was nil")
@@ -206,6 +206,15 @@ local function function_literal_checker (params: {string}, body_ck: check_node_f
 			return false
 		end
 		local func = node as ast.FunctionLiteral
+		if name ~= nil then
+			if func.name == nil then
+				t:error("recursive function literal not given name.")
+			else
+				if func.name ~= name then
+					t:error("recursive function literal with wrong name. want='%s', got='%s'", name, func.name)
+				end
+			end
+		end
 		if #func.parameters ~= #params then
 			t:error("function literal has not %d parameters. got=%d", #params, #func.parameters)
 		end
@@ -1059,6 +1068,18 @@ local function test_parsing_hash_literals_with_expressions (t: testing.T)
 	ck(t, program)
 end
 
+local function test_function_literal_with_name (t: testing.T)
+	local input = 'let myFunction = fn() { };'
+	local l = lexer.new(input)
+	local p = parser.new(l)
+	local program = p:parse_program()
+	check_parser_errors(t, p)
+	local ck = program_checker {
+		let_statement_checker("myFunction", function_literal_checker({}, anything_checker(), "myFunction"))
+	}
+	ck(t, program)
+end
+
 return {
 	domain = "parser",
 	test_cases = {
@@ -1082,5 +1103,6 @@ return {
 		{ name = "parsing_hash_literals_string_keys", func = test_parsing_hash_literals_string_keys },
 		{ name = "parsing_empty_hash_literal", func = test_parsing_empty_hash_literal },
 		{ name = "parsing_hash_literals_with_expressions", func = test_parsing_hash_literals_with_expressions },
+		{ name = "function_literal_with_name", func = test_function_literal_with_name },
 	}
 }

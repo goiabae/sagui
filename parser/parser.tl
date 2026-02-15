@@ -231,6 +231,13 @@ function Parser:parse_let_statement(): ast.LetStatement
 	end
 	self:next_token()
 	stmt.value = self:parse_expression(LOWEST)
+	do
+		local v = stmt.value
+		if v is ast.FunctionLiteral then
+			local fl = v as ast.FunctionLiteral
+			fl.name = stmt.name.value
+		end
+	end
 	while not self:cur_token_is(token.SEMICOLON) do
 		self:next_token()
 	end
@@ -294,7 +301,7 @@ function Parser:parse_block_statement (): ast.BlockStatement
 end
 
 function Parser:parse_function_literal (): ast.Expression
-	local lit = ast.FunctionLiteral.new(self.cur_token, nil, nil)
+	local lit = ast.FunctionLiteral.new(self.cur_token, nil, nil, "")
 	if not self:expect_peek(token.LPAREN) then
 		return nil
 	end

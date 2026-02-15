@@ -46,6 +46,9 @@ local record code
 	OpGetLocal: Opcode
 	OpSetLocal: Opcode
 	OpGetBuiltin: Opcode
+	OpClosure: Opcode
+	OpGetFree: Opcode
+	OpCurrentClosure: Opcode
 
 	definitions: { Opcode:Definition }
 	lookup: function (byte): (Definition, string)
@@ -82,6 +85,9 @@ code.OpReturn = 23
 code.OpGetLocal = 24
 code.OpSetLocal = 25
 code.OpGetBuiltin = 26
+code.OpClosure = 27
+code.OpGetFree = 28
+code.OpCurrentClosure = 29
 
 code.definitions = {
 	[code.OpConstant] = { name = "OpConstant", operand_widths = {2} },
@@ -111,6 +117,9 @@ code.definitions = {
 	[code.OpGetLocal] = { name = "OpGetLocal", operand_widths = {1} },
 	[code.OpSetLocal] = { name = "OpSetLocal", operand_widths = {1} },
 	[code.OpGetBuiltin] = { name = "OpGetBuiltin", operand_widths = {1} },
+	[code.OpClosure] = { name = "OpClosure", operand_widths = {2, 1} },
+	[code.OpGetFree] = { name = "OpGetFree", operand_widths = {1} },
+	[code.OpCurrentClosure] = { name = "OpCurrentClosure", operand_widths = {} },
 }
 
 function code.opcode_name (op: code.Opcode): string
@@ -252,6 +261,8 @@ function code.Instructions:fmt_instruction (def: code.Definition, operands: {int
 		return def.name
 	elseif operand_count == 1 then
 		return string.format("%s %d", def.name, operands[1])
+	elseif operand_count == 2 then
+		return string.format("%s %d %d", def.name, operands[1], operands[2])
 	end
 	return string.format("ERROR: unhandled operand_count for %s\n", def.name)
 end

@@ -179,6 +179,139 @@ local function test_define_resolve_builtins (t: testing.T)
 	end
 end
 
+local function test_resolve_free (t: testing.T)
+	local globau = symbol_table.SymbolTable.new()
+	globau:define("a")
+	globau:define("b")
+
+	local first_locau = symbol_table.SymbolTable.new_enclosed(globau)
+	first_locau:define("c")
+	first_locau:define("d")
+
+	local second_locau = symbol_table.SymbolTable.new_enclosed(first_locau)
+	second_locau:define("e")
+	second_locau:define("f")
+
+	local tests: {{symbol_table.SymbolTable, {symbol_table.Symbol}, {symbol_table.Symbol}}} = {
+		{
+			first_locau,
+			{
+				symbol_table.Symbol.new("a", symbol_table.GlobalScope, 0),
+				symbol_table.Symbol.new("b", symbol_table.GlobalScope, 1),
+				symbol_table.Symbol.new("c", symbol_table.LocalScope, 0),
+				symbol_table.Symbol.new("d", symbol_table.LocalScope, 1),
+			},
+			{},
+		},
+		{
+			second_locau,
+			{
+				symbol_table.Symbol.new("a", symbol_table.GlobalScope, 0),
+				symbol_table.Symbol.new("b", symbol_table.GlobalScope, 1),
+				symbol_table.Symbol.new("c", symbol_table.FreeScope, 0),
+				symbol_table.Symbol.new("d", symbol_table.FreeScope, 1),
+				symbol_table.Symbol.new("e", symbol_table.LocalScope, 0),
+				symbol_table.Symbol.new("f", symbol_table.LocalScope, 1),
+			},
+			{
+				symbol_table.Symbol.new("c", symbol_table.LocalScope, 0),
+				symbol_table.Symbol.new("d", symbol_table.LocalScope, 1),
+			},
+		},
+	}
+
+	for _, tt in ipairs(tests) do
+		for _, sym in ipairs(tt[2]) do
+			local result, ok = tt[1]:resolve(sym.name)
+			if not ok then
+				t:error("name %s not resolvable", sym.name)
+			else
+				if result ~= sym then
+					t:error("expected %s to resolve to %s, got=%s", sym.name, fmt_sym(sym), fmt_sym(result))
+				end
+			end
+		end
+		if #tt[1].free_symbols ~= #tt[3] then
+			t:error("wrong number of free symbols. got=%d, want=%d", #tt[1].free_symbols, #tt[3])
+		end
+		for i, sym in ipairs(tt[3]) do
+			local result = tt[1].free_symbols[i]
+			if result ~= sym then
+				t:error("wrong free symbol. got=%s, want=%s", fmt_sym(result), fmt_sym(sym))
+			end
+		end
+	end
+end
+
+local function test_unresolvable_free (t: testing.T)
+	local globau = symbol_table.SymbolTable.new()
+	globau:define("a")
+
+	local first_locau = symbol_table.SymbolTable.new_enclosed(globau)
+	first_locau:define("c")
+
+	local second_locau = symbol_table.SymbolTable.new_enclosed(first_locau)
+	second_locau:define("e")
+	second_locau:define("f")
+
+	local expected = {
+		symbol_table.Symbol.new("a", symbol_table.GlobalScope, 0),
+		symbol_table.Symbol.new("c", symbol_table.FreeScope, 0),
+		symbol_table.Symbol.new("e", symbol_table.LocalScope, 0),
+		symbol_table.Symbol.new("f", symbol_table.LocalScope, 1),
+	}
+
+	for _, sym in ipairs(expected) do
+		local result, ok = second_locau:resolve(sym.name)
+		if not ok then
+			t:error("name %s not resolvable", sym.name)
+		else
+			if result ~= sym then
+				t:error("expected %s to resolve to %s, got=%s", sym.name, fmt_sym(sym), fmt_sym(result))
+			end
+		end
+	end
+
+	local expected_unresolvable = {
+		"b",
+		"d",
+	}
+
+	for _, name in ipairs(expected_unresolvable) do
+		local _, ok = second_locau:resolve(name)
+		if ok then
+			t:error("name %s resolved, but was expected not to", name)
+		end
+	end
+end
+
+local function test_define_and_resolve_function_name (t: testing.T)
+	local globau = symbol_table.SymbolTable.new()
+	globau:define_function_name("a")
+	local expected = symbol_table.Symbol.new("a", symbol_table.FunctionScope, 0)
+	local result, ok = globau:resolve(expected.name)
+	if not ok then
+		t:fatal_fail("function name %s not resolvable", expected.name)
+	end
+	if result ~= expected then
+		t:error("expected %s to resolve to %s, got=%s", expected.name, fmt_sym(expected), fmt_sym(result))
+	end
+end
+
+local function test_define_shadowing_function_name (t: testing.T)
+	local globau = symbol_table.SymbolTable.new()
+	globau:define_function_name("a")
+	globau:define("a")
+	local expected = symbol_table.Symbol.new("a", symbol_table.GlobalScope, 0)
+	local result, ok = globau:resolve(expected.name)
+	if not ok then
+		t:fatal_fail("function name %s not resolvable", expected.name)
+	end
+	if result ~= expected then
+		t:error("expected %s to resolve to %s, got=%s", expected.name, fmt_sym(expected), fmt_sym(result))
+	end
+end
+
 return {
 	domain = "symbol_table",
 	test_cases = {
@@ -187,5 +320,9 @@ return {
 		{ name = "resolve_local", func = test_resolve_local },
 		{ name = "resolve_nested_local", func = test_resolve_nested_local },
 		{ name = "define_resolve_builtins", func = test_define_resolve_builtins },
+		{ name = "resolve_free", func = test_resolve_free },
+		{ name = "unresolvable_free", func = test_unresolvable_free },
+		{ name = "define_and_resolve_function_name", func = test_define_and_resolve_function_name },
+		{ name = "define_shadowing_function_name", func = test_define_shadowing_function_name },
 	}
 }
